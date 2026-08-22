@@ -28,7 +28,7 @@ npm install
 npm run build
 ```
 
-Enable **Obsidian Agentic Research** under **Settings → Community plugins**. For watch mode during development, run `npm run dev`, then reload the plugin from Obsidian.
+Enable **Obsidian Agentic Research** under **Settings → Community plugins**. The manifest requires Obsidian 1.11.4 or newer because the plugin uses SecretStorage for API keys. For watch mode during development, run `npm run dev`, then reload the plugin from Obsidian.
 
 The production bundle consists of `main.js`, `manifest.json`, and `styles.css`. They can also be copied manually into `.obsidian/plugins/obsidian-agentic-research/`.
 

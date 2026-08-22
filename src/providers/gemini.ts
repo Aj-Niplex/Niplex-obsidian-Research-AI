@@ -24,6 +24,7 @@ function toGeminiContents(messages: ChatMessage[]): { contents: unknown[]; syste
 							functionResponse: {
 								name: message.toolName ?? "tool",
 								response: { content: message.content },
+								id: message.toolCallId,
 							},
 						},
 					],
@@ -32,7 +33,10 @@ function toGeminiContents(messages: ChatMessage[]): { contents: unknown[]; syste
 			const parts: unknown[] = [];
 			if (message.content) parts.push({ text: message.content });
 			for (const call of message.toolCalls ?? []) {
-				parts.push({ functionCall: { name: call.name, args: call.arguments, id: call.id } });
+				parts.push({
+					functionCall: { name: call.name, args: call.arguments, id: call.id },
+					...(call.thoughtSignature ? { thoughtSignature: call.thoughtSignature } : {}),
+				});
 			}
 			return { role: message.role === "assistant" ? "model" : "user", parts };
 		});
@@ -72,6 +76,7 @@ export class GeminiProvider implements ProviderAdapter {
 						parts?: Array<{
 							text?: string;
 							functionCall?: { name?: string; args?: Record<string, unknown>; id?: string };
+							thoughtSignature?: string;
 						}>;
 					};
 				}>;
@@ -86,8 +91,9 @@ export class GeminiProvider implements ProviderAdapter {
 				toolCalls.push({
 					id: part.functionCall.id ?? `gemini-call-${Date.now()}-${index}`,
 					name: part.functionCall.name,
-					arguments: part.functionCall.args ?? {},
-				});
+									arguments: part.functionCall.args ?? {},
+									thoughtSignature: part.thoughtSignature,
+								});
 				return "";
 			})
 			.join("")
