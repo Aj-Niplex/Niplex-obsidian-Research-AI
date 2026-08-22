@@ -1,0 +1,106 @@
+.oar-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	padding: var(--size-4-3);
+	box-sizing: border-box;
+}
+
+.oar-header h2 {
+	margin: 0;
+}
+
+.oar-muted {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.oar-transcript {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: var(--size-4-2) 0;
+	overscroll-behavior: contain;
+}
+
+.oar-message {
+	border-radius: var(--radius-m);
+	padding: var(--size-4-2);
+	margin: var(--size-4-2) 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.oar-message strong,
+.oar-message small {
+	display: block;
+	margin-bottom: var(--size-4-1);
+}
+
+.oar-user {
+	background: var(--background-secondary);
+}
+
+.oar-assistant {
+	background: var(--background-primary-alt);
+}
+
+.oar-system {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.oar-tool {
+	background: var(--background-secondary);
+	border-left: 3px solid var(--interactive-accent);
+	font-family: var(--font-text);
+	font-size: var(--font-ui-small);
+}
+
+.oar-error {
+	background: var(--background-modifier-error);
+	color: var(--text-error);
+}
+
+.oar-composer {
+	border-top: 1px solid var(--background-modifier-border);
+	padding-top: var(--size-4-3);
+}
+
+.oar-composer textarea {
+	display: block;
+	width: 100%;
+	min-height: 5rem;
+	resize: vertical;
+	box-sizing: border-box;
+	margin-bottom: var(--size-4-2);
+}
+
+.oar-composer button {
+	width: 100%;
+	min-height: 2.5rem;
+}
+
+.oar-modal-actions {
+	display: flex;
+	gap: var(--size-4-2);
+	justify-content: flex-end;
+	flex-wrap: wrap;
+}
+
+.oar-modal-actions button {
+	min-height: 2.5rem;
+	min-width: 7rem;
+}
+
+@media (max-width: 600px) {
+	.oar-view {
+		padding: var(--size-4-2);
+	}
+
+	.oar-header p {
+		margin-bottom: var(--size-4-2);
+	}
+}

@@ -1,0 +1,10 @@
+{
+	"id": "obsidian-agentic-research",
+	"name": "Obsidian Agentic Research",
+	"version": "0.1.0",
+	"minAppVersion": "1.11.4",
+	"description": "Run bounded, auditable agentic research tasks over your Obsidian vault with Gemini or Agnes.",
+	"author": "Aj-Niplex",
+	"authorUrl": "https://github.com/Aj-Niplex",
+	"isDesktopOnly": false
+}

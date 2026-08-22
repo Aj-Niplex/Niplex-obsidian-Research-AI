@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Obsidian build output
+main.js
+*.js.map
+data.json
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Tooling output
+coverage/
+*.log
+.DS_Store
+.vscode/
+.idea/
