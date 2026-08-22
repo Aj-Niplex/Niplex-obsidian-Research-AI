@@ -26,9 +26,12 @@ export class ApprovalModal extends Modal {
 	onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
+		contentEl.addClass("oar-modal");
 		contentEl.createEl("h2", { text: "Approve agent action" });
 		contentEl.createEl("p", { text: `The agent wants to run ${this.tool.name}.` });
-		contentEl.createEl("pre", { text: JSON.stringify(this.call.arguments, null, 2) });
+		const args = JSON.stringify(this.call.arguments, null, 2);
+		const maxArgsChars = 2400;
+		contentEl.createEl("pre", { text: args.length > maxArgsChars ? `${args.slice(0, maxArgsChars)}\n…[arguments truncated]` : args });
 		const actions = contentEl.createDiv({ cls: "oar-modal-actions" });
 		actions.createEl("button", { text: "Deny" }).addEventListener("click", () => this.finish(false));
 		actions.createEl("button", { text: "Approve", cls: "mod-cta" }).addEventListener("click", () => this.finish(true));

@@ -4,7 +4,7 @@
 
 This project is a mobile-first Obsidian community plugin for running bounded, auditable agentic research tasks over a vault. The first release will provide a sidebar chat, Gemini and Agnes provider adapters, a small tool loop, and vault tools that return metadata, search hits, or bounded line ranges instead of embedding entire files in model requests.
 
-The plugin runs locally inside Obsidian. API credentials are entered by the user and stored with Obsidian SecretStorage when available; non-secret preferences live in plugin data. The enabled Gemini and Agnes connectors in the Manus session are used for project research and validation, while the shipped plugin remains independently usable on a phone or tablet.
+The plugin runs locally inside Obsidian. API credentials are entered by the user and stored with Obsidian SecretStorage; non-secret preferences live in plugin data. The shipped plugin remains independently usable on a phone or tablet and does not inherit credentials or configuration from another application.
 
 ## Mobile constraints
 

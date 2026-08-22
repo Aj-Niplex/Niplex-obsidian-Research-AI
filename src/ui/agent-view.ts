@@ -52,29 +52,36 @@ export class AgentView extends ItemView {
 		});
 	}
 
+	private scrollToBottom(): void {
+		this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
+	}
+
 	private appendSystem(text: string): void {
 		const block = this.transcriptEl.createDiv({ cls: "oar-message oar-system" });
 		block.createDiv({ text });
+		this.scrollToBottom();
 	}
 
 	private appendUser(text: string): void {
 		const block = this.transcriptEl.createDiv({ cls: "oar-message oar-user" });
 		block.createEl("strong", { text: "You" });
 		block.createDiv({ text });
+		this.scrollToBottom();
 	}
 
 	private appendEvent(event: AgentEvent): void {
 		if (event.type === "text") {
 			const block = this.transcriptEl.createDiv({ cls: "oar-message oar-assistant" });
-			block.createEl("strong", { text: "Agent" });
-			block.createDiv({ text: event.message });
-			return;
+				block.createEl("strong", { text: "Agent" });
+				block.createDiv({ text: event.message });
+				this.scrollToBottom();
+				return;
 		}
 		const cls = event.type === "error" ? "oar-error" : "oar-tool";
 		const block = this.transcriptEl.createDiv({ cls: `oar-message ${cls}` });
 		block.createEl("small", { text: event.type === "tool" ? `Tool: ${event.tool?.name ?? "unknown"}` : "Status" });
 		block.createDiv({ text: event.message });
-		this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
+		this.scrollToBottom();
 	}
 
 	private async submit(): Promise<void> {

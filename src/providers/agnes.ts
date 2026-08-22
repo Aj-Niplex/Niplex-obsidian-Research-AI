@@ -25,7 +25,7 @@ export class AgnesProvider implements ProviderAdapter {
 			if (message.role === "assistant" && message.toolCalls?.length) {
 				return {
 					role: "assistant",
-					content: message.content || null,
+					content: message.content ?? null,
 					tool_calls: message.toolCalls.map((call) => ({
 						id: call.id,
 						type: "function",
@@ -34,9 +34,9 @@ export class AgnesProvider implements ProviderAdapter {
 				};
 			}
 			if (message.role === "tool") {
-				return { role: "tool", tool_call_id: message.toolCallId, content: message.content };
+					return { role: "tool", tool_call_id: message.toolCallId, content: message.content ?? "" };
 			}
-			return { role: message.role, content: message.content };
+				return { role: message.role, content: message.content ?? "" };
 		});
 		const body = {
 			model: request.model,
@@ -56,11 +56,16 @@ export class AgnesProvider implements ProviderAdapter {
 		});
 		const payload = response.json as {
 			error?: { message?: string };
-			choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> } }>;
+			choices?: Array<{
+				finish_reason?: string;
+				message?: { content?: string | null; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> };
+			}>;
 		};
 		if (response.status >= 400) throw new Error(payload.error?.message ?? `Agnes request failed with HTTP ${response.status}.`);
-		const message = payload.choices?.[0]?.message;
-		const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
+		const choice = payload.choices?.[0];
+		if (!choice?.message) throw new Error(`Agnes returned no usable response${choice?.finish_reason ? ` (${choice.finish_reason})` : ""}.`);
+		const message = choice.message;
+		const toolCalls: ToolCall[] = (message.tool_calls ?? [])
 			.filter((call) => call.function?.name)
 			.map((call, index) => ({
 				id: call.id ?? `agnes-call-${Date.now()}-${index}`,

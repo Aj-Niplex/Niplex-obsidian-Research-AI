@@ -72,6 +72,8 @@ export class GeminiProvider implements ProviderAdapter {
 		});
 					const payload = response.json as {
 				candidates?: Array<{
+					finishReason?: string;
+					finishMessage?: string;
 					content?: {
 						parts?: Array<{
 							text?: string;
@@ -82,8 +84,10 @@ export class GeminiProvider implements ProviderAdapter {
 				}>;
 			};
 
-		if (response.status >= 400) throw new Error(errorMessage(payload, response.status));
-		const parts = payload.candidates?.[0]?.content?.parts ?? [];
+			if (response.status >= 400) throw new Error(errorMessage(payload, response.status));
+			const candidate = payload.candidates?.[0];
+			if (!candidate) throw new Error("Gemini returned no candidates; check the model name, safety settings, or API key.");
+			const parts = candidate.content?.parts ?? [];
 		const toolCalls: ToolCall[] = [];
 		const text = parts
 			.map((part, index) => {

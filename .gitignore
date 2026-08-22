@@ -17,3 +17,8 @@ coverage/
 .DS_Store
 .vscode/
 .idea/
+
+# Temporary multi-model review material
+/docs/review-packet-*.md
+/docs/review-results/
+/docs/live-model-catalog.json

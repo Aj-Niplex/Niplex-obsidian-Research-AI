@@ -13,12 +13,12 @@ jobs:
             id-token: write
             attestations: write
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
 
             - name: Use Node.js
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@v7
               with:
-                  node-version: 24
+                  node-version: 22
                   cache: 'npm'
 
             - name: Build plugin
@@ -31,20 +31,24 @@ jobs:
               run: |
                   [ -f styles.css ] && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
 
-            - name: Attest build provenance
+            - name: Attest main bundle
               uses: actions/attest@v4
               with:
-                  subject-path: |
-                      main.js
-                      ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+                  subject-path: main.js
+
+            - name: Attest styles.css
+              if: steps.styles.outputs.exists == 'true'
+              uses: actions/attest@v4
+              with:
+                  subject-path: styles.css
 
             - name: Create release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   tag="${GITHUB_REF#refs/tags/}"
-
-                  gh release create "$tag" \
-                    --title="$tag" \
-                    --draft \
-                    main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+                  assets=("main.js" "manifest.json")
+                  if [ "${{ steps.styles.outputs.exists }}" = "true" ]; then
+                    assets+=("styles.css")
+                  fi
+                  gh release create "$tag" --title="$tag" --draft "${assets[@]}"

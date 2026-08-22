@@ -104,3 +104,15 @@
 		margin-bottom: var(--size-4-2);
 	}
 }
+
+.oar-modal {
+	max-width: min(36rem, 92vw);
+}
+
+.oar-modal pre {
+	max-height: 40vh;
+	overflow: auto;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-size: var(--font-ui-smaller);
+}

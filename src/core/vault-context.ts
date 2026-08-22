@@ -1,4 +1,5 @@
 import { App, TFile, Vault } from "obsidian";
+import { sanitizeVaultPath } from "./path-utils";
 import type { BoundedReadResult, SearchHit, ToolDefinition, ToolResult } from "./types";
 
 const MAX_LIST_RESULTS = 250;
@@ -32,11 +33,12 @@ export class VaultContext {
 	private isProtected(path: string): boolean {
 		const normalized = path.replace(/^\/+/, "");
 		const configDir = this.vault.configDir.replace(/^\/+|\/+$/g, "");
+		const protectedFolder = this.protectedFolder.replace(/^\/+|\/+$/g, "");
 		return (
 			normalized === configDir ||
 			normalized.startsWith(`${configDir}/`) ||
-			normalized === this.protectedFolder ||
-			normalized.startsWith(`${this.protectedFolder}/`)
+			normalized === protectedFolder ||
+			normalized.startsWith(`${protectedFolder}/`)
 		);
 	}
 
@@ -66,7 +68,10 @@ export class VaultContext {
 	}
 
 	async readFileChunk(path: string, startLine = 1, maxLines = this.maxReadLines): Promise<ToolResult> {
-		const file = this.getMarkdownFile(path);
+		const cleanPath = sanitizeVaultPath(path);
+		if (!cleanPath) return { ok: false, isError: true, content: "Invalid vault-relative path." };
+		if (this.isProtected(cleanPath)) return { ok: false, isError: true, content: "That folder is protected." };
+		const file = this.getMarkdownFile(cleanPath);
 		if (!file) return { ok: false, isError: true, content: `Markdown file not found: ${path}` };
 
 		const safeStart = asPositiveInt(startLine, 1);
@@ -78,7 +83,7 @@ export class VaultContext {
 		const endLine = selected.length === 0 ? safeStart - 1 : safeStart + selected.length - 1;
 		const hasMore = startIndex + selected.length < lines.length;
 		const result: BoundedReadResult = {
-			path,
+			path: cleanPath,
 			startLine: safeStart,
 			endLine,
 			totalLines: lines.length,
@@ -113,7 +118,7 @@ export class VaultContext {
 	}
 
 	async createNote(path: string, content: string): Promise<ToolResult> {
-		const cleanPath = path.trim().replace(/^\/+/, "");
+		const cleanPath = sanitizeVaultPath(path);
 		if (!cleanPath || !cleanPath.toLowerCase().endsWith(".md")) {
 			return { ok: false, isError: true, content: "The note path must end with .md." };
 		}
@@ -124,10 +129,11 @@ export class VaultContext {
 	}
 
 	async appendNote(path: string, content: string): Promise<ToolResult> {
-		const cleanPath = path.trim().replace(/^\/+/, "");
+		const cleanPath = sanitizeVaultPath(path);
+		if (!cleanPath) return { ok: false, isError: true, content: "Invalid vault-relative path." };
+		if (this.isProtected(cleanPath)) return { ok: false, isError: true, content: "That folder is protected." };
 		const file = this.getMarkdownFile(cleanPath);
 		if (!file) return { ok: false, isError: true, content: `Markdown file not found: ${cleanPath}` };
-		if (this.isProtected(cleanPath)) return { ok: false, isError: true, content: "That folder is protected." };
 		await this.vault.append(file, `\n${content}`);
 		return { ok: true, content: `Appended content to ${cleanPath}` };
 	}

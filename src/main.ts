@@ -1,4 +1,4 @@
-import { Notice, Plugin, WorkspaceLeaf } from "obsidian";
+import { Notice, Platform, Plugin, WorkspaceLeaf } from "obsidian";
 import { AgentRuntime, type AgentEvent } from "./core/agent-runtime";
 import { DEFAULT_SETTINGS, type AgentSettings, type ToolCall, type ToolDefinition } from "./core/types";
 import { VaultContext } from "./core/vault-context";
@@ -84,9 +84,10 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		const { workspace } = this.app;
 		let leaf: WorkspaceLeaf | undefined = workspace.getLeavesOfType(AGENT_VIEW_TYPE)[0];
 		if (!leaf) {
-			leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf("tab");
+			leaf = Platform.isMobile ? workspace.getLeaf("tab") : workspace.getRightLeaf(false) ?? workspace.getLeaf("tab");
 			await leaf.setViewState({ type: AGENT_VIEW_TYPE, active: true });
 		}
-		await workspace.revealLeaf(leaf);
+		if (leaf) await workspace.revealLeaf(leaf);
+		else new Notice("Could not open the agentic research view.");
 	}
 }
