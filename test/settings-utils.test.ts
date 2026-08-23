@@ -39,3 +39,17 @@ test("normalizes fallback order and clamps onboarding state", () => {
 	assert.equal(settings.onboardingVersion, 99);
 	assert.equal(settings.maxReadLines, 20);
 });
+
+test("keeps the quick-action bar to three valid icons and defaults legacy mode to chat", () => {
+	const settings = normalizeAgentSettings({
+		quickActions: ["moc", "history", "logs", "attach", "moc", "unknown"],
+		researchMode: "unsupported",
+	});
+	assert.deepEqual(settings.quickActions, ["moc", "history", "logs"]);
+	assert.equal(settings.researchMode, "chat");
+});
+
+test("preserves an explicit plan or create-and-edit mode", () => {
+	assert.equal(normalizeAgentSettings({ researchMode: "plan" }).researchMode, "plan");
+	assert.equal(normalizeAgentSettings({ researchMode: "edit" }).researchMode, "edit");
+});
