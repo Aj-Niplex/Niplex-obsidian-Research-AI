@@ -79,6 +79,7 @@ export class AgentRuntime {
 		private readonly provider: ProviderAdapter,
 		private readonly vaultContext: VaultContext,
 		private readonly settings: AgentSettings,
+		private readonly onDiagnostic?: (level: "info" | "warn" | "error", event: string, message: string, model?: string) => void,
 	) {
 		this.tools = vaultContext.getToolDefinitions();
 	}
@@ -107,21 +108,32 @@ export class AgentRuntime {
 				const completed = await completeWithModelFallback(
 					this.provider,
 					{ model: activeModel, messages, tools: this.tools },
-					{
-						enabled: this.settings.autoFallbackOnRateLimit,
-						configuredFallbackModels: configuredFallbackModels(this.settings),
-						onEvent: (event) => {
-							if (event.type === "checking") emit({ type: "status", phase: "thinking", step: iteration, message: `${event.from} was rate-limited. Checking for another available ${this.settings.provider} model…` });
-							else if (event.to) emit({ type: "status", phase: "thinking", step: iteration, message: `Model ${event.from} was rate-limited → trying ${event.to}.` });
+						{
+							enabled: this.settings.autoFallbackOnRateLimit,
+							configuredFallbackModels: configuredFallbackModels(this.settings),
+							cooldowns: this.settings.modelCooldowns,
+							onEvent: (event) => {
+								if (event.type === "checking") emit({ type: "status", phase: "thinking", step: iteration, message: `${event.from} is unavailable or cooling down. Checking another available ${this.settings.provider} model…` });
+								else if (event.type === "cooling_down") {
+									const seconds = event.until ? Math.max(1, Math.ceil((event.until - Date.now()) / 1000)) : 60;
+									const message = event.reason === "rate-limit" ? `Rate-limited: ${event.from} will be skipped for about ${seconds}s.` : `Model ${event.from} is unavailable and will be skipped for about ${seconds}s.`;
+									emit({ type: "status", phase: "thinking", step: iteration, message });
+									this.onDiagnostic?.("warn", "model-cooldown", message, event.from);
+								} else if (event.to) {
+									const message = `Trying ${event.to} after ${event.from} was unavailable.`;
+									emit({ type: "status", phase: "thinking", step: iteration, message });
+									this.onDiagnostic?.("info", "model-switch", message, event.to);
+								}
+							},
 						},
-					},
 				);
 				activeModel = completed.model;
 				response = completed.response;
 			} catch (error) {
-				const message = `Provider request failed: ${safeError(error)}`;
-				emit({ type: "error", phase: "error", step: iteration, message });
-				return { text: message, messages, model: activeModel };
+					const message = `Provider request failed: ${safeError(error)}`;
+					emit({ type: "error", phase: "error", step: iteration, message });
+					this.onDiagnostic?.("error", "provider-request-failed", message, activeModel);
+					return { text: message, messages, model: activeModel };
 			}
 
 			const calls = response.toolCalls ?? [];
