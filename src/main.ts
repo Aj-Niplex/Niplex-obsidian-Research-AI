@@ -1,8 +1,9 @@
 import { Notice, Platform, Plugin, WorkspaceLeaf } from "obsidian";
 import { AgentRuntime, type AgentEvent, type AgentRunResult } from "./core/agent-runtime";
-import { DEFAULT_SETTINGS, type AgentSettings, type ChatMessage, type ProviderId, type ProviderModel, type SavedChat, type ToolCall, type ToolDefinition, type ToolResult } from "./core/types";
+import { DEFAULT_SETTINGS, type AgentSettings, type ChatMessage, type DiagnosticEntry, type ProviderId, type ProviderModel, type SavedChat, type ToolCall, type ToolDefinition, type ToolResult } from "./core/types";
 import { VaultContext } from "./core/vault-context";
 import { normalizeAgentSettings } from "./core/settings-utils";
+import { createDiagnosticEntry, DiagnosticsStore } from "./core/diagnostics";
 import { MocOrganizer, type MocProgress } from "./core/moc-organizer";
 import { AgnesProvider } from "./providers/agnes";
 import { GeminiProvider } from "./providers/gemini";
@@ -10,10 +11,12 @@ import { AgenticResearchSettingTab, type SettingsHost } from "./settings";
 import { ApprovalModal } from "./ui/approval-modal";
 import { AGENT_VIEW_TYPE, AgentView, type AgentViewHost } from "./ui/agent-view";
 import { WALKTHROUGH_VERSION, WalkthroughModal } from "./ui/walkthrough-modal";
+import { DiagnosticsModal } from "./ui/diagnostics-modal";
 
 interface PersistedData {
 	settings: AgentSettings;
 	chats: SavedChat[];
+	diagnostics?: DiagnosticEntry[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -36,6 +39,7 @@ function normalizeChat(value: unknown): SavedChat | null {
 export default class AgenticResearchPlugin extends Plugin implements SettingsHost, AgentViewHost {
 	settings: AgentSettings = { ...DEFAULT_SETTINGS };
 	private chats: SavedChat[] = [];
+	private diagnostics = new DiagnosticsStore();
 	private readonly modelCatalogueCache = new Map<ProviderId, { fetchedAt: number; models: ProviderModel[] }>();
 
 	async onload(): Promise<void> {
@@ -43,6 +47,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		const savedSettings = raw && isRecord(raw.settings) ? raw.settings : raw;
 		this.settings = normalizeAgentSettings(savedSettings);
 		this.chats = raw && Array.isArray(raw.chats) ? raw.chats.map(normalizeChat).filter((chat): chat is SavedChat => chat !== null) : [];
+		this.diagnostics = new DiagnosticsStore(raw && Array.isArray(raw.diagnostics) ? raw.diagnostics : []);
 
 		this.registerView(AGENT_VIEW_TYPE, (leaf) => new AgentView(leaf, this));
 		this.addRibbonIcon("search", "Open agentic research", () => void this.activateView());
@@ -61,6 +66,11 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 			name: "Show agentic research walkthrough",
 			callback: () => this.openWalkthrough(),
 		});
+		this.addCommand({
+			id: "open-agentic-research-diagnostics",
+			name: "Open agentic research diagnostics",
+			callback: () => this.openDiagnostics(),
+		});
 		this.addSettingTab(new AgenticResearchSettingTab(this.app, this));
 		this.app.workspace.onLayoutReady(() => {
 			if (this.settings.onboardingVersion < WALKTHROUGH_VERSION) window.setTimeout(() => this.openWalkthrough(), 250);
@@ -69,6 +79,23 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 
 	openWalkthrough(): void {
 		new WalkthroughModal(this.app, this).open();
+	}
+
+	openDiagnostics(): void {
+		new DiagnosticsModal(this.app, this).open();
+	}
+
+	getDiagnosticsText(): string {
+		return this.diagnostics.formatForShare();
+	}
+
+	clearDiagnostics(): void {
+		this.diagnostics.clear();
+		void this.persistData();
+	}
+
+	private recordDiagnostic(level: "info" | "warn" | "error", event: string, message: string, model?: string): void {
+		this.diagnostics.record(createDiagnosticEntry(level, event, message, this.settings.provider, model));
 	}
 
 	async saveSettings(): Promise<void> {
@@ -108,7 +135,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	}
 
 	private async persistData(): Promise<void> {
-		const data: PersistedData = { settings: this.settings, chats: this.chats };
+		const data: PersistedData = { settings: this.settings, chats: this.chats, diagnostics: this.diagnostics.list() };
 		await this.saveData(data);
 	}
 
@@ -131,7 +158,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	}
 
 	private createRuntime(): AgentRuntime {
-		return new AgentRuntime(this.getProvider(), this.createVaultContext(), this.settings);
+		return new AgentRuntime(this.getProvider(), this.createVaultContext(), this.settings, (level, event, message, model) => this.recordDiagnostic(level, event, message, model));
 	}
 
 	async runAgent(
@@ -155,16 +182,20 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		}
 		const enrichedPrompt = hints.length ? `${prompt}\n\n${hints.join("\n\n")}` : prompt;
 		try {
-			return await this.createRuntime().run(
+			const result = await this.createRuntime().run(
 				enrichedPrompt,
 				(tool, call) => this.approveWrite(tool, call),
 				emit,
 				history,
 			);
+			await this.persistData();
+			return result;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Agent run failed.";
 			emit({ type: "error", phase: "error", message });
 			new Notice(message);
+			this.recordDiagnostic("error", "agent-run-failed", message);
+			await this.persistData();
 			throw error;
 		}
 	}
@@ -193,7 +224,16 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	async buildMocs(mode: "create" | "adjust", root: string, maxNotes: number, onProgress: (progress: MocProgress) => void, onlyPath = "") {
 		const model = this.settings.provider === "gemini" ? this.settings.geminiModel : this.settings.agnesModel;
 		const fallbackModels = this.settings.provider === "gemini" ? this.settings.geminiFallbackModels : this.settings.agnesFallbackModels;
-		return new MocOrganizer(this.getProvider(), model, this.createVaultContext(), fallbackModels, this.settings.autoFallbackOnRateLimit).build(mode, root, maxNotes, onProgress, onlyPath);
+		try {
+			const result = await new MocOrganizer(this.getProvider(), model, this.createVaultContext(), fallbackModels, this.settings.autoFallbackOnRateLimit, this.settings.modelCooldowns, (level, event, message, usedModel) => this.recordDiagnostic(level, event, message, usedModel)).build(mode, root, maxNotes, onProgress, onlyPath);
+			if (!result.ok) this.recordDiagnostic("error", "moc-build-failed", result.content, model);
+			await this.persistData();
+			return result;
+		} catch (error) {
+			this.recordDiagnostic("error", "moc-build-failed", error instanceof Error ? error.message : "MOC generation failed.", model);
+			await this.persistData();
+			throw error;
+		}
 	}
 
 	private approveWrite(tool: ToolDefinition, call: ToolCall): Promise<boolean> {

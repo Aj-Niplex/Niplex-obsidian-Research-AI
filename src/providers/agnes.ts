@@ -31,9 +31,9 @@ export class AgnesProvider implements ProviderAdapter {
 		});
 		const payload = response.json as { data?: Array<{ id?: string; display_name?: string; displayName?: string }>; error?: { message?: string } };
 		if (response.status >= 400) throw new ProviderRequestError(payload.error?.message ?? `Agnes model catalogue failed with HTTP ${response.status}.`, response.status, "agnes_http_error");
-		return (payload.data ?? [])
-			.map((model) => ({ id: model.id?.trim() ?? "", label: model.display_name?.trim() || model.displayName?.trim() || model.id?.trim() || "Agnes model" }))
-			.filter((model) => Boolean(model.id));
+			return (payload.data ?? [])
+				.map((model) => ({ id: model.id?.trim() ?? "", label: model.display_name?.trim() || model.displayName?.trim() || model.id?.trim() || "Agnes model" }))
+				.filter((model) => Boolean(model.id) && !/(?:image|video|audio|tts|embedding)/i.test(model.id));
 	}
 
 	async complete(request: ProviderRequest): Promise<ProviderResponse> {

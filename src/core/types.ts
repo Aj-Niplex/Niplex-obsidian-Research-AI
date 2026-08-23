@@ -50,6 +50,22 @@ export interface ProviderModel {
 	label: string;
 }
 
+export type ModelCooldownReason = "rate-limit" | "unavailable";
+
+export interface ModelCooldown {
+	until: number;
+	reason: ModelCooldownReason;
+}
+
+export interface DiagnosticEntry {
+	at: number;
+	level: "info" | "warn" | "error";
+	event: string;
+	provider?: ProviderId;
+	model?: string;
+	message: string;
+}
+
 export interface ProviderAdapter {
 	readonly id: ProviderId;
 	complete(request: ProviderRequest): Promise<ProviderResponse>;
@@ -85,6 +101,7 @@ export interface AgentSettings {
 	geminiFallbackModels: string[];
 	agnesFallbackModels: string[];
 	autoFallbackOnRateLimit: boolean;
+	modelCooldowns: Record<string, ModelCooldown>;
 	maxIterations: number;
 	maxToolResultChars: number;
 	maxReadLines: number;
@@ -100,6 +117,7 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	geminiFallbackModels: [],
 	agnesFallbackModels: [],
 	autoFallbackOnRateLimit: true,
+	modelCooldowns: {},
 	maxIterations: 8,
 	maxToolResultChars: 12000,
 	maxReadLines: 160,

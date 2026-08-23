@@ -12,6 +12,7 @@ export interface AgentViewHost extends MocHost {
 	getChats(): SavedChat[];
 	getChat(id: string): SavedChat | null;
 	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<ProviderModel[]>;
+	openDiagnostics(): void;
 	saveChat(chat: SavedChat): Promise<void>;
 	deleteChat(id: string): Promise<void>;
 }
@@ -71,8 +72,10 @@ export class AgentView extends ItemView {
 		this.saveChatButton.addEventListener("click", () => void this.saveCurrentChat());
 		this.deleteChatButton = toolbar.createEl("button", { text: "Delete" });
 		this.deleteChatButton.addEventListener("click", () => void this.deleteCurrentChat());
-		const mocButton = toolbar.createEl("button", { text: "MOC" });
-		mocButton.addEventListener("click", () => new MocModal(this.app, this.host, () => this.refreshScopeText()).open());
+			const mocButton = toolbar.createEl("button", { text: "MOC" });
+			mocButton.addEventListener("click", () => new MocModal(this.app, this.host, () => this.refreshScopeText()).open());
+			const logsButton = toolbar.createEl("button", { text: "Logs" });
+			logsButton.addEventListener("click", () => this.host.openDiagnostics());
 			toolbar.createEl("label", { text: "Provider" });
 			this.providerSelect = toolbar.createEl("select", { cls: "oar-provider-select", attr: { "aria-label": "Provider" } });
 			this.providerSelect.add(new Option("Google Gemini", "gemini"));
@@ -126,7 +129,9 @@ export class AgentView extends ItemView {
 		} catch {
 			models = [];
 		}
-		const entries = [{ id: selected, label: `${selected} · ${models.length ? "configured" : "catalogue unavailable"}` }, ...models.filter((model) => model.id !== selected)];
+		const selectedIsLive = models.some((model) => model.id === selected);
+		const selectedLabel = !models.length ? `${selected} · catalogue unavailable` : selectedIsLive ? `${selected} · selected` : `${selected} · unavailable — choose another`;
+		const entries = [{ id: selected, label: selectedLabel }, ...models.filter((model) => model.id !== selected)];
 		this.modelSelect.empty();
 		for (const model of entries) this.modelSelect.add(new Option(model.label, model.id));
 		this.modelSelect.value = selected;

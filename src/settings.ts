@@ -9,6 +9,7 @@ export interface SettingsHost {
 	getSecret(id: string): string | null;
 	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<Array<{ id: string; label: string }>>;
 	openWalkthrough(): void;
+	openDiagnostics(): void;
 }
 
 export class AgenticResearchSettingTab extends PluginSettingTab {
@@ -64,7 +65,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Automatic rate-limit fallback")
-				.setDesc("If the selected model returns a rate-limit or quota error, try another model from this provider's catalogue. Providers are never switched silently.")
+				.setDesc("If the selected model returns a rate-limit or quota error, skip that model for one minute and try another model from this provider's catalogue. Obsolete models are skipped longer to prevent repeated failures. Providers are never switched silently.")
 				.addToggle((toggle) => toggle.setValue(this.host.settings.autoFallbackOnRateLimit).onChange(async (value) => {
 					this.host.settings.autoFallbackOnRateLimit = value;
 					await this.host.saveSettings();
@@ -120,6 +121,11 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 				.setName("First-time walkthrough")
 				.setDesc("Review privacy, bounded reading, moc-first navigation, fallback, and write approvals.")
 				.addButton((button) => button.setButtonText("Show walkthrough").onClick(() => this.host.openWalkthrough()));
+
+			new Setting(containerEl)
+				.setName("Share diagnostics")
+				.setDesc("Open redacted local logs for sharing when a run or model fallback needs troubleshooting.")
+				.addButton((button) => button.setButtonText("Open logs").onClick(() => this.host.openDiagnostics()));
 
 			new Setting(containerEl)
 				.setName("Maximum agent steps")

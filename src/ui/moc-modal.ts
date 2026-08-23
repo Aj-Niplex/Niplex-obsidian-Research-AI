@@ -122,7 +122,7 @@ export class MocModal extends Modal {
 			}
 		} catch (error) {
 			this.statusEl.textContent = error instanceof Error ? error.message : "MOC generation failed.";
-			new Notice(this.statusEl.textContent);
+			new Notice(this.statusEl.textContent.slice(0, 180), 7000);
 		} finally {
 			this.busy = false;
 			this.actionButton.removeClass("is-loading");
@@ -140,8 +140,10 @@ export class MocModal extends Modal {
 	}
 
 	private showResult(result: MocBuildResult): void {
-		this.statusEl.textContent = result.content;
-		new Notice(result.content);
+		const summary = result.content.length > 900 ? `${result.content.slice(0, 900)}…` : result.content;
+		this.statusEl.textContent = summary;
+		const notice = result.ok ? `MOC complete: ${result.notesProcessed} note(s), ${result.categories} categor${result.categories === 1 ? "y" : "ies"}.` : `MOC failed: ${result.content.slice(0, 180)}`;
+		new Notice(notice, 7000);
 	}
 
 	onClose(): void {

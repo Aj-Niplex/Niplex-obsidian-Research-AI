@@ -625,3 +625,58 @@
 		width: 100%;
 	}
 }
+
+.oar-moc-status {
+	max-height: min(12rem, 28vh);
+	overflow-y: auto;
+	white-space: pre-wrap;
+}
+
+.oar-diagnostics-modal {
+	width: min(38rem, 92vw);
+	max-width: 100%;
+	max-height: min(85vh, 48rem);
+	overflow-y: auto;
+	padding-bottom: max(var(--size-4-3), env(safe-area-inset-bottom));
+	font-family: var(--font-interface, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.oar-diagnostics-preview {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	min-height: 12rem;
+	max-height: 45vh;
+	resize: vertical;
+	box-sizing: border-box;
+	font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+	font-size: var(--font-ui-smaller);
+	white-space: pre-wrap;
+	overflow: auto;
+}
+
+.oar-diagnostics-actions {
+	display: flex;
+	gap: var(--size-4-2);
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	margin-top: var(--size-4-3);
+}
+
+.oar-diagnostics-actions button {
+	min-height: 2.6rem;
+}
+
+@media (max-width: 600px) {
+	.oar-diagnostics-modal {
+		width: 100%;
+	}
+
+	.oar-diagnostics-actions {
+		flex-direction: column;
+	}
+
+	.oar-diagnostics-actions button {
+		width: 100%;
+	}
+}

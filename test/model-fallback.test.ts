@@ -35,7 +35,7 @@ test("tries configured same-provider fallback before the remaining live catalogu
 	});
 	assert.equal(result.model, "preferred-backup");
 	assert.deepEqual(provider.attempted, ["primary", "preferred-backup"]);
-	assert.deepEqual(events, ["checking", "primary->preferred-backup"]);
+	assert.deepEqual(events, ["cooling_down", "checking", "primary->preferred-backup"]);
 });
 
 test("does not fallback for authentication or malformed-request errors", async () => {
@@ -45,6 +45,30 @@ test("does not fallback for authentication or malformed-request errors", async (
 		(error: unknown) => error instanceof ProviderRequestError && error.status === 401,
 	);
 	assert.deepEqual(provider.attempted, ["primary"]);
+});
+
+test("skips a rate-limited model across later calls and allows it after expiry", async () => {
+	const cooldowns: Record<string, { until: number; reason: "rate-limit" | "unavailable" }> = {};
+	const provider = new FakeProvider({ primary: new ProviderRequestError("quota exceeded", 429), "preferred-backup": { text: "recovered", toolCalls: [] } });
+	const before = Date.now();
+	await completeWithModelFallback(provider, request, { enabled: true, configuredFallbackModels: ["preferred-backup"], cooldowns });
+	assert.ok((cooldowns["gemini/primary"]?.until ?? 0) - before >= 59_000);
+	assert.ok((cooldowns["gemini/primary"]?.until ?? 0) - before <= 61_000);
+	await completeWithModelFallback(provider, request, { enabled: true, configuredFallbackModels: ["preferred-backup"], cooldowns });
+	assert.deepEqual(provider.attempted, ["primary", "preferred-backup", "preferred-backup"]);
+	cooldowns["gemini/primary"] = { until: Date.now() - 1, reason: "rate-limit" };
+	const reuseProvider = new FakeProvider({ primary: { text: "primary recovered", toolCalls: [] } });
+	const reused = await completeWithModelFallback(reuseProvider, request, { enabled: true, configuredFallbackModels: [], cooldowns });
+	assert.equal(reused.model, "primary");
+	assert.deepEqual(reuseProvider.attempted, ["primary"]);
+});
+
+test("quarantines a stale model without treating it as a rate limit", async () => {
+	const cooldowns: Record<string, { until: number; reason: "rate-limit" | "unavailable" }> = {};
+	const provider = new FakeProvider({ primary: new ProviderRequestError("This model is no longer available", 400), "preferred-backup": { text: "recovered", toolCalls: [] } });
+	const result = await completeWithModelFallback(provider, request, { enabled: true, configuredFallbackModels: ["preferred-backup"], cooldowns });
+	assert.equal(result.model, "preferred-backup");
+	assert.equal(cooldowns["gemini/primary"]?.reason, "unavailable");
 });
 
 test("uses the live catalogue when no configured fallback order is provided", async () => {

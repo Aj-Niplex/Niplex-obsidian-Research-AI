@@ -1,5 +1,5 @@
 import { completeWithModelFallback } from "./model-fallback";
-import type { ProviderAdapter, ProviderRequest, ToolResult } from "./types";
+import type { ModelCooldown, ProviderAdapter, ProviderRequest, ToolResult } from "./types";
 import type { NoteForCategorization, VaultContext } from "./vault-context";
 
 export interface MocCategory {
@@ -109,6 +109,8 @@ export class MocOrganizer {
 		private readonly vault: VaultContext,
 		private readonly fallbackModels: string[] = [],
 		private readonly autoFallback = true,
+		private readonly cooldowns: Record<string, ModelCooldown> = {},
+		private readonly onDiagnostic?: (level: "info" | "warn" | "error", event: string, message: string, model?: string) => void,
 	) {}
 
 	async build(
@@ -255,10 +257,20 @@ export class MocOrganizer {
 			const result = await completeWithModelFallback(this.provider, request, {
 				enabled: this.autoFallback,
 				configuredFallbackModels: this.fallbackModels,
-				onEvent: (event) => {
-					if (event.type === "checking") onProgress({ phase: "classifying", current, total, message: `${event.from} was rate-limited. Checking the ${this.provider.id} model catalogue…` });
-					else if (event.to) onProgress({ phase: "classifying", current, total, message: `Model ${event.from} was rate-limited → trying ${event.to}.` });
-				},
+					cooldowns: this.cooldowns,
+					onEvent: (event) => {
+						if (event.type === "checking") onProgress({ phase: "classifying", current, total, message: `${event.from} is unavailable or cooling down. Checking the ${this.provider.id} model catalogue…` });
+						else if (event.type === "cooling_down") {
+							const seconds = event.until ? Math.max(1, Math.ceil((event.until - Date.now()) / 1000)) : 60;
+							const message = event.reason === "rate-limit" ? `Rate-limited: ${event.from} will be skipped for about ${seconds}s.` : `Model ${event.from} is unavailable and will be skipped for about ${seconds}s.`;
+							onProgress({ phase: "classifying", current, total, message });
+							this.onDiagnostic?.("warn", "moc-model-cooldown", message, event.from);
+						} else if (event.to) {
+							const message = `Trying ${event.to} after ${event.from} was unavailable.`;
+							onProgress({ phase: "classifying", current, total, message });
+							this.onDiagnostic?.("info", "moc-model-switch", message, event.to);
+						}
+					},
 			});
 			this.model = result.model;
 			return result.response;
