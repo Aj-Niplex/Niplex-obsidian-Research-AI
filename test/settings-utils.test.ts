@@ -12,6 +12,7 @@ test("migrates legacy settings without losing safe defaults", () => {
 	assert.equal(settings.autoFallbackOnRateLimit, true);
 	assert.equal(settings.activeMocPath, "MOCs/MOCs super.md");
 	assert.equal(settings.onboardingVersion, 0);
+	assert.equal(settings.mocLocationConfigured, false);
 });
 
 test("normalizes MOC time budget and checkpoint state", () => {

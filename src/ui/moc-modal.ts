@@ -34,11 +34,13 @@ export class MocModal extends Modal {
 	private stopButton!: HTMLButtonElement;
 	private busy = false;
 	private paused = false;
+	private readonly autoStart: boolean;
 
-	constructor(app: App, host: MocHost, onDone: () => void) {
+	constructor(app: App, host: MocHost, onDone: () => void, autoStart = false) {
 		super(app);
 		this.host = host;
 		this.onDone = onDone;
+		this.autoStart = autoStart;
 	}
 
 	onOpen(): void {
@@ -67,6 +69,7 @@ export class MocModal extends Modal {
 			}
 		});
 		this.renderBody();
+		if (this.autoStart) window.setTimeout(() => void this.run(), 180);
 	}
 
 	private renderBody(): void {
@@ -76,7 +79,7 @@ export class MocModal extends Modal {
 		const body = this.contentEl.createDiv({ cls: "oar-moc-body" });
 		new Setting(body)
 			.setName("Map folder")
-			.setDesc("Generated category notes and the super-map are kept under this vault-relative folder.")
+				.setDesc("Generated category notes and the super-map are kept under this vault-relative folder. Keep this setup window open while the build runs; minimizing it is fine.")
 			.addText((text) => {
 				this.rootEl = text.inputEl;
 				text.setValue(rootFromActivePath(this.host.settings.activeMocPath, this.host.settings.mocFolder));
@@ -90,7 +93,7 @@ export class MocModal extends Modal {
 
 		const explanation = body.createDiv({ cls: "oar-moc-explanation" });
 		explanation.createEl("strong", { text: "Output structure" });
-			explanation.createEl("p", { text: "Mocs/ → model-selected category notes → mocs super.md. Each category explains what belongs inside it, and the super-map recommends category combinations for better answers." });
+			explanation.createEl("p", { text: "The selected folder receives model-selected category notes and mocs super.md. Each category explains what belongs inside it, and the super-map recommends category combinations for better answers." });
 		const tree = body.createEl("pre", { cls: "oar-moc-tree" });
 		tree.textContent = `${this.rootEl?.value.trim() || this.host.settings.mocFolder}/\n├── <model-selected category>.md\n├── <another category>.md\n└── MOCs super.md`;
 

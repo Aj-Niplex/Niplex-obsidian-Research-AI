@@ -1,0 +1,57 @@
+export type CompanionPluginId = "niplex-skills-helper" | "obsidian-icon-folder";
+
+export interface CompanionPluginDefinition {
+	id: CompanionPluginId;
+	name: string;
+	description: string;
+	installUrl: string;
+	expectedVersion?: string;
+	required: boolean;
+}
+
+export interface CompanionPluginStatus extends CompanionPluginDefinition {
+	installed: boolean;
+	enabled: boolean;
+	installedVersion?: string;
+	upToDate: boolean;
+}
+
+export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
+	{
+		id: "niplex-skills-helper",
+		name: "Niplex Skills Helper",
+		description: "Look up and preview five-character instruction-skill packages.",
+		installUrl: "https://github.com/Aj-Niplex/niplex-obsidian-helper/releases/latest",
+		expectedVersion: "0.1.3",
+		required: true,
+	},
+	{
+		id: "obsidian-icon-folder",
+		name: "Iconize",
+		description: "Optional file and folder icons. Niplex Research AI does not require it for its own interface.",
+		installUrl: "https://github.com/FlorianWoelki/obsidian-iconize/releases/latest",
+		required: false,
+	},
+];
+
+function versionAtLeast(actual: string | undefined, expected: string | undefined): boolean {
+	if (!expected) return true;
+	if (!actual) return false;
+	const parse = (value: string) => value.split(".").map((part) => Number.parseInt(part.replace(/[^0-9].*$/, ""), 10) || 0);
+	const actualParts = parse(actual);
+	const expectedParts = parse(expected);
+	for (let index = 0; index < Math.max(actualParts.length, expectedParts.length); index += 1) {
+		const actualPart = actualParts[index] ?? 0;
+		const expectedPart = expectedParts[index] ?? 0;
+		if (actualPart !== expectedPart) return actualPart > expectedPart;
+	}
+	return true;
+}
+
+export function isCompanionVersionCurrent(actual: string | undefined, expected: string | undefined): boolean {
+	return versionAtLeast(actual, expected);
+}
+
+export function getCompanionDefinition(pluginId: string): CompanionPluginDefinition | null {
+	return COMPANION_PLUGINS.find((plugin) => plugin.id === pluginId) ?? null;
+}

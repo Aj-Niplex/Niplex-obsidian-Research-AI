@@ -140,6 +140,7 @@ export interface AgentSettings {
 	mocCheckpoint?: MocCheckpoint;
 	stateFolder: string;
 	mocFolder: string;
+	mocLocationConfigured: boolean;
 	activeMocPath: string;
 	userSystemPrompt: string;
 	writeApprovalPolicy: WriteApprovalPolicy;
@@ -162,6 +163,7 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	mocTimeBudgetSeconds: 120,
 	stateFolder: ".obsidian-agentic-research",
 	mocFolder: "NIPLEX-OBSIDIAN/MOCs",
+	mocLocationConfigured: false,
 	activeMocPath: "",
 	userSystemPrompt: "",
 	writeApprovalPolicy: { mode: "always", expiresAt: 0, pathPrefix: "", tools: [] },

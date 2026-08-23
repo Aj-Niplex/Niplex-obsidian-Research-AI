@@ -249,10 +249,11 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 						host.settings.mocFolder,
 						async (value) => {
 							const safe = sanitizeVaultPath(value);
-							if (safe) {
-								host.settings.mocFolder = safe;
-								await host.saveSettings();
-							}
+								if (safe) {
+									host.settings.mocFolder = safe;
+									host.settings.mocLocationConfigured = true;
+									await host.saveSettings();
+								}
 						},
 					),
 				],
@@ -417,10 +418,11 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 				.setDesc("Generated category maps are saved under this visible vault folder. The default is NIPLEX-Obsidian/mocs.")
 				.addText((text) => text.setValue(this.host.settings.mocFolder).onChange(async (value) => {
 					const safe = sanitizeVaultPath(value);
-					if (safe) {
-						this.host.settings.mocFolder = safe;
-						await this.host.saveSettings();
-					}
+						if (safe) {
+							this.host.settings.mocFolder = safe;
+							this.host.settings.mocLocationConfigured = true;
+							await this.host.saveSettings();
+						}
 				}));
 
 			new Setting(containerEl)

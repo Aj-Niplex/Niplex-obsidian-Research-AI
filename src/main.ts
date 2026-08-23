@@ -19,6 +19,7 @@ import { LocalVaultStore, NIPLEX_MEMORY_FILE, type InstalledSkill } from "./core
 import { normalizeUserSystemPrompt } from "./core/system-prompt";
 import { boundInjectedContext, boundText, CONTEXT_BUDGETS } from "./core/context-budget";
 import { compactChatMessages } from "./core/chat-history";
+import { getCompanionDefinition, isCompanionVersionCurrent, type CompanionPluginId, type CompanionPluginStatus } from "./core/companion-plugins";
 
 interface PersistedData {
 	settings: AgentSettings;
@@ -118,8 +119,14 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		new WalkthroughModal(this.app, this).open();
 	}
 
-	openMocBuilder(): void {
-		new MocModal(this.app, this, () => undefined).open();
+	openMocBuilder(autoStart = false): void {
+		new MocModal(this.app, this, () => undefined, autoStart).open();
+	}
+
+	openCommunityPlugins(): void {
+		const setting = (this.app as unknown as { setting?: { openTabById?: (id: string) => void } }).setting;
+		if (setting?.openTabById) setting.openTabById("community-plugins");
+		else new Notice("Open settings → community plugins, then enable the companion plugin.");
 	}
 
 	async openMemoryFile(): Promise<void> {
@@ -132,7 +139,32 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	}
 
 	isCompanionInstalled(pluginId: string): boolean {
-		return Boolean(this.app.vault.getAbstractFileByPath(`.obsidian/plugins/${pluginId}/manifest.json`));
+		const pluginManager = (this.app as unknown as { plugins?: { manifests?: Record<string, unknown> } }).plugins;
+		return Boolean(pluginManager?.manifests?.[pluginId] || this.app.vault.getAbstractFileByPath(`.obsidian/plugins/${pluginId}/manifest.json`));
+	}
+
+	async getCompanionStatus(pluginId: CompanionPluginId): Promise<CompanionPluginStatus> {
+		const definition = getCompanionDefinition(pluginId);
+		if (!definition) throw new Error(`Unknown companion plugin: ${pluginId}`);
+		const pluginManager = (this.app as unknown as { plugins?: { manifests?: Record<string, unknown>; enabledPlugins?: Set<string> } }).plugins;
+		const listedManifest = pluginManager?.manifests?.[pluginId];
+		const manifestFile = this.app.vault.getAbstractFileByPath(`.obsidian/plugins/${pluginId}/manifest.json`);
+		let installedVersion: string | undefined;
+		const listedVersion = listedManifest && typeof listedManifest === "object" ? (listedManifest as Record<string, unknown>).version : undefined;
+		if (typeof listedVersion === "string") installedVersion = listedVersion;
+		if (!installedVersion && manifestFile instanceof TFile) {
+			try {
+				const manifest: unknown = JSON.parse(await this.app.vault.read(manifestFile));
+				const version = manifest && typeof manifest === "object" ? (manifest as Record<string, unknown>).version : undefined;
+				if (typeof version === "string") installedVersion = version;
+			} catch {
+				// A malformed manifest is reported as installed but not current.
+			}
+		}
+		const installed = Boolean(listedManifest || manifestFile instanceof TFile);
+		const enabled = Boolean(pluginManager?.enabledPlugins?.has(pluginId));
+		const upToDate = installed && isCompanionVersionCurrent(installedVersion, definition.expectedVersion);
+		return { ...definition, installed, enabled, installedVersion, upToDate };
 	}
 
 	openDiagnostics(): void {
@@ -354,9 +386,15 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	}
 
 	async buildMocs(mode: "create" | "adjust", root: string, maxNotes: number, onProgress: (progress: MocProgress) => void, onlyPath = "") {
+		const cleanRoot = root.trim().replace(/^\/+|\/+$/g, "");
+		if (cleanRoot && cleanRoot !== this.settings.mocFolder) {
+			this.settings.mocFolder = cleanRoot;
+			this.settings.mocLocationConfigured = true;
+			await this.saveSettings();
+		}
 		const model = await this.ensureUsableModel(this.settings.provider);
 		const fallbackModels = this.settings.provider === "gemini" ? this.settings.geminiFallbackModels : this.settings.agnesFallbackModels;
-		const checkpoint = this.settings.mocCheckpoint?.mode === mode && this.settings.mocCheckpoint.rootPath === root.trim().replace(/^\/+|\/+$/g, "") && this.settings.mocCheckpoint.onlyPath === onlyPath ? this.settings.mocCheckpoint : undefined;
+		const checkpoint = this.settings.mocCheckpoint?.mode === mode && this.settings.mocCheckpoint.rootPath === cleanRoot && this.settings.mocCheckpoint.onlyPath === onlyPath ? this.settings.mocCheckpoint : undefined;
 		const organizer = new MocOrganizer(this.getProvider(), model, this.createVaultContext(), fallbackModels, this.settings.autoFallbackOnRateLimit, this.settings.modelCooldowns, (level, event, message, usedModel) => this.recordDiagnostic(level, event, message, usedModel), checkpoint, this.settings.mocTimeBudgetSeconds, (nextCheckpoint) => {
 			this.settings.mocCheckpoint = nextCheckpoint;
 			return this.persistData();
