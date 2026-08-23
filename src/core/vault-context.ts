@@ -1,5 +1,6 @@
 import { App, TFile, Vault } from "obsidian";
 import { sanitizeVaultPath } from "./path-utils";
+import { NIPLEX_AGENT_PROTECTED_FOLDERS } from "./local-vault-store";
 import type { BoundedReadResult, SearchHit, ToolDefinition, ToolResult } from "./types";
 
 const MAX_LIST_RESULTS = 250;
@@ -42,13 +43,8 @@ export class VaultContext {
 	private isProtected(path: string): boolean {
 		const normalized = path.replace(/^\/+/, "");
 		const configDir = this.vault.configDir.replace(/^\/+|\/+$/g, "");
-		const protectedFolder = this.protectedFolder.replace(/^\/+|\/+$/g, "");
-		return (
-			normalized === configDir ||
-			normalized.startsWith(`${configDir}/`) ||
-			normalized === protectedFolder ||
-			normalized.startsWith(`${protectedFolder}/`)
-		);
+		const protectedFolders = [this.protectedFolder, ...NIPLEX_AGENT_PROTECTED_FOLDERS].map((folder) => folder.replace(/^\/+|\/+$/g, "")).filter(Boolean);
+		return normalized === configDir || normalized.startsWith(`${configDir}/`) || protectedFolders.some((folder) => normalized === folder || normalized.startsWith(`${folder}/`));
 	}
 
 	private getMarkdownFile(path: string): TFile | null {
@@ -184,13 +180,24 @@ export class VaultContext {
 	}
 
 	getRecentMarkdownFiles(limit = 10): string[] {
-		return this.vault
-			.getMarkdownFiles()
-			.filter((file) => !this.isProtected(file.path))
-			.sort((a, b) => b.stat.mtime - a.stat.mtime)
-			.map((file) => file.path)
-			.slice(0, Math.min(Math.max(limit, 1), 25));
-	}
+			return this.vault
+				.getMarkdownFiles()
+				.filter((file) => !this.isProtected(file.path))
+				.sort((a, b) => b.stat.mtime - a.stat.mtime)
+				.map((file) => file.path)
+				.slice(0, Math.min(Math.max(limit, 1), 25));
+		}
+
+	searchMarkdownPaths(query = "", limit = 100): string[] {
+			const normalized = query.trim().toLowerCase();
+			return this.vault
+				.getMarkdownFiles()
+				.filter((file) => !this.isProtected(file.path))
+				.filter((file) => !normalized || file.path.toLowerCase().includes(normalized))
+				.sort((a, b) => b.stat.mtime - a.stat.mtime)
+				.map((file) => file.path)
+				.slice(0, Math.min(Math.max(limit, 1), 250));
+		}
 
 	getMarkdownFilesInFolder(folder: string): string[] {
 		const sanitized = sanitizeVaultPath(folder);

@@ -2,13 +2,14 @@ import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from "obsidian";
 import type { AgentEvent, AgentRunResult } from "../core/agent-runtime";
 import type { AgentSettings, ChatMessage, ProviderId, ProviderModel, SavedChat } from "../core/types";
 import { MocModal, type MocHost } from "./moc-modal";
+import { FilePickerModal, type FilePickerHost } from "./file-picker-modal";
 
 export const AGENT_VIEW_TYPE = "obsidian-agentic-research-view";
 
-export interface AgentViewHost extends MocHost {
+export interface AgentViewHost extends MocHost, FilePickerHost {
 	settings: AgentSettings;
 	saveSettings(): Promise<void>;
-	runAgent(prompt: string, history: ChatMessage[], emit: (event: AgentEvent) => void): Promise<AgentRunResult>;
+	runAgent(prompt: string, history: ChatMessage[], emit: (event: AgentEvent) => void, attachedFiles?: string[]): Promise<AgentRunResult>;
 	getChats(): SavedChat[];
 	getChat(id: string): SavedChat | null;
 	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<ProviderModel[]>;
@@ -19,7 +20,7 @@ export interface AgentViewHost extends MocHost {
 
 function newChat(): SavedChat {
 	const now = Date.now();
-	return { id: `chat-${now}`, title: "New research chat", createdAt: now, updatedAt: now, provider: "gemini", model: "", messages: [] };
+		return { id: `chat-${now}`, title: "New research chat", createdAt: now, updatedAt: now, provider: "gemini", model: "", messages: [], attachments: [] };
 }
 
 export class AgentView extends ItemView {
@@ -31,8 +32,11 @@ export class AgentView extends ItemView {
 	private providerSelect!: HTMLSelectElement;
 	private modelSelect!: HTMLSelectElement;
 	private chatSelect!: HTMLSelectElement;
+	private chatSearchEl!: HTMLInputElement;
 	private saveChatButton!: HTMLButtonElement;
 	private deleteChatButton!: HTMLButtonElement;
+	private attachButton!: HTMLButtonElement;
+	private attachmentListEl!: HTMLElement;
 	private scopeEl!: HTMLElement;
 	private busyEl: HTMLElement | null = null;
 	private activeStep: HTMLDetailsElement | null = null;
@@ -64,8 +68,10 @@ export class AgentView extends ItemView {
 		this.refreshScopeText();
 
 		const toolbar = header.createDiv({ cls: "oar-toolbar" });
-		this.chatSelect = toolbar.createEl("select", { cls: "oar-chat-select", attr: { "aria-label": "Saved chat" } });
-		this.chatSelect.addEventListener("change", () => this.selectChat(this.chatSelect.value));
+			this.chatSearchEl = toolbar.createEl("input", { type: "search", placeholder: "Search saved chats…", cls: "oar-chat-search", attr: { "aria-label": "Search saved chats" } });
+			this.chatSearchEl.addEventListener("input", () => this.refreshChatOptions());
+			this.chatSelect = toolbar.createEl("select", { cls: "oar-chat-select", attr: { "aria-label": "Saved chat" } });
+			this.chatSelect.addEventListener("change", () => this.selectChat(this.chatSelect.value));
 		const newButton = toolbar.createEl("button", { text: "New chat" });
 		newButton.addEventListener("click", () => this.startNewChat());
 		this.saveChatButton = toolbar.createEl("button", { text: "Save" });
@@ -91,11 +97,18 @@ export class AgentView extends ItemView {
 		this.transcriptEl = root.createDiv({ cls: "oar-transcript" });
 		this.renderCurrentChat();
 
-		const composer = root.createDiv({ cls: "oar-composer" });
-		this.inputEl = composer.createEl("textarea", {
-			attr: { rows: "4", placeholder: "Ask the agent to research your vault…" },
-		});
-			const composerActions = composer.createDiv({ cls: "oar-composer-actions" });
+			const composer = root.createDiv({ cls: "oar-composer" });
+			this.inputEl = composer.createEl("textarea", {
+				attr: { rows: "4", placeholder: "Ask the agent to research your vault…" },
+			});
+			this.attachmentListEl = composer.createDiv({ cls: "oar-attachment-list" });
+			this.attachButton = composer.createEl("button", { text: "Attach files", cls: "oar-attach-button" });
+			this.attachButton.addEventListener("click", () => new FilePickerModal(this.app, this.host, this.currentChat.attachments ?? [], (paths) => {
+				this.currentChat.attachments = paths;
+				this.renderAttachmentChips();
+			}).open());
+			this.renderAttachmentChips();
+				const composerActions = composer.createDiv({ cls: "oar-composer-actions" });
 			this.runButton = composerActions.createEl("button", { text: "Run agent", cls: "mod-cta" });
 			this.runButton.addEventListener("click", () => void this.submit());
 			this.continueButton = composerActions.createEl("button", { text: "Continue bounded research", cls: "oar-continue-button" });
@@ -171,11 +184,14 @@ export class AgentView extends ItemView {
 	private refreshChatOptions(): void {
 		if (!this.chatSelect) return;
 		this.chatSelect.empty();
-		this.chatSelect.add(new Option("Current chat", this.currentChat.id));
-		for (const chat of this.host.getChats()) {
-			if (chat.id === this.currentChat.id) continue;
-			this.chatSelect.add(new Option(chat.title, chat.id));
-		}
+			this.chatSelect.add(new Option("Current chat", this.currentChat.id));
+			const query = this.chatSearchEl?.value.trim().toLowerCase() ?? "";
+			for (const chat of this.host.getChats()) {
+				if (chat.id === this.currentChat.id) continue;
+				const haystack = `${chat.title}\n${chat.messages.map((message) => message.content).join("\n")}`.toLowerCase();
+				if (query && !haystack.includes(query)) continue;
+				this.chatSelect.add(new Option(chat.title, chat.id));
+			}
 		this.chatSelect.value = this.currentChat.id;
 		this.deleteChatButton.disabled = !this.currentChatPersisted;
 	}
@@ -185,6 +201,7 @@ export class AgentView extends ItemView {
 		const chat = this.host.getChat(id);
 		if (!chat) return;
 		this.currentChat = chat;
+		this.currentChat.attachments = chat.attachments ?? [];
 		this.currentChatPersisted = true;
 			this.host.settings.provider = chat.provider;
 			if (chat.model) {
@@ -195,6 +212,7 @@ export class AgentView extends ItemView {
 			void this.host.saveSettings();
 			void this.refreshModelOptions();
 		this.renderCurrentChat();
+		this.renderAttachmentChips();
 	}
 
 	private startNewChat(): void {
@@ -205,6 +223,27 @@ export class AgentView extends ItemView {
 			void this.refreshModelOptions();
 			this.renderCurrentChat();
 		this.refreshChatOptions();
+		this.renderAttachmentChips();
+	}
+
+	private renderAttachmentChips(): void {
+		if (!this.attachmentListEl) return;
+		this.attachmentListEl.empty();
+		const attachments = this.currentChat.attachments ?? [];
+		if (!attachments.length) {
+			this.attachmentListEl.createSpan({ text: "No explicit files attached; the agent will use bounded tools and super-MOC context.", cls: "oar-muted" });
+			return;
+		}
+		this.attachmentListEl.createSpan({ text: "Attached for next run:", cls: "oar-attachment-label" });
+		for (const path of attachments) {
+			const chip = this.attachmentListEl.createSpan({ cls: "oar-attachment-chip" });
+			chip.createSpan({ text: path });
+			const remove = chip.createEl("button", { text: "×", attr: { "aria-label": `Remove ${path}` } });
+			remove.addEventListener("click", () => {
+				this.currentChat.attachments = (this.currentChat.attachments ?? []).filter((item) => item !== path);
+				this.renderAttachmentChips();
+			});
+		}
 	}
 
 	private renderCurrentChat(): void {
@@ -375,6 +414,7 @@ export class AgentView extends ItemView {
 		if (!prompt || this.runButton.disabled) return;
 		this.inputEl.value = "";
 		const history = this.currentChat.messages.slice();
+		const attachments = [...(this.currentChat.attachments ?? [])];
 		this.appendUser(prompt);
 		this.currentChat.messages.push({ role: "user", content: prompt });
 		if (this.currentChat.messages.filter((message) => message.role === "user").length === 1) {
@@ -386,8 +426,9 @@ export class AgentView extends ItemView {
 		this.inputEl.disabled = true;
 		this.runButton.textContent = "Working…";
 		try {
-			const result = await this.host.runAgent(prompt, history, (event) => this.appendEvent(event));
-				this.currentChat.model = result.model;
+				const result = await this.host.runAgent(prompt, history, (event) => this.appendEvent(event), attachments);
+					this.currentChat.model = result.model;
+					this.currentChat.attachments = attachments;
 				this.continueButton.disabled = !result.stopped;
 				this.currentChat.messages = result.messages.filter((message) => message.role !== "system");
 			if (this.currentChatPersisted) await this.host.saveChat(this.currentChat);

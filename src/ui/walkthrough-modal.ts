@@ -1,7 +1,7 @@
 import { App, Modal, Notice } from "obsidian";
 import type { AgentSettings } from "../core/types";
 
-export const WALKTHROUGH_VERSION = 1;
+export const WALKTHROUGH_VERSION = 2;
 
 export interface WalkthroughHost {
 	settings: AgentSettings;
@@ -24,13 +24,15 @@ export class WalkthroughModal extends Modal {
 			cls: "oar-muted",
 		});
 
-		const steps = [
-			["1", "Connect a provider", "Add a Gemini or Agnes API key in plugin settings. Keys stay in Obsidian SecretStorage and are not saved in chat data."],
-			["2", "Start from your MOCs", "When MOCs super.md exists, every run receives a bounded snapshot first. The agent can then choose relevant category MOCs and notes instead of opening your whole vault."],
-			["3", "Read in bounded windows", "Each read_file_chunk call is limited by your settings. The agent may continue to another relevant file, but it never uploads the entire vault in one request."],
-			["4", "Fallback stays in-provider", "If the selected model is rate-limited, the plugin checks that provider's live catalogue and tries another available model. It does not silently switch from Gemini to Agnes or vice versa."],
-			["5", "Writes always ask first", "Creating or appending a note pauses for your approval. You can deny the action and continue researching without changing the vault."],
-		];
+			const steps = [
+				["1", "Connect a provider", "Add a Gemini or Agnes API key in plugin settings. Keys stay in Obsidian SecretStorage and are never written into NIPLEX-OBSIDIAN, chats, prompts, or MOCs."],
+				["2", "Use transparent prompts", "The built-in Aj-Niplex/Niplex policy is visible and read-only. Your custom system prompt is additive preferences only; it cannot replace bounded access, privacy rules, or approvals."],
+				["3", "Choose context deliberately", "MOCs are generated under NIPLEX-OBSIDIAN/MOCs. You can attach up to eight specific Markdown files, but only bounded windows are read for that run; whole-file and whole-vault uploads are not defaults."],
+				["4", "Keep your graph tidy", "For a cleaner Obsidian Graph View, manually exclude NIPLEX-OBSIDIAN/ in Graph View filters. This plugin does not silently change Obsidian's global graph settings."],
+				["5", "Approve durable edits", "Writes ask first by default. If you explicitly configure a short timed window, only selected write tools under one folder prefix may auto-approve; everything else still asks and expiry returns to always ask."],
+				["6", "Keep history local", "Saved chats are readable Markdown under NIPLEX-OBSIDIAN/Chats and can be searched or deleted in the plugin. Runtime metadata remains protected from agent reads."],
+				["7", "Install skills safely", "The optional helper plugin can look up a five-character marketplace code from the Niplex-Obsidian-skills catalogue. Preview and approve instruction-only skills; they cannot run scripts, obtain keys, bypass approvals, or replace the protected prompt."],
+			];
 		const list = contentEl.createDiv({ cls: "oar-walkthrough-list" });
 		for (const [number, title, description] of steps) {
 			const item = list.createDiv({ cls: "oar-walkthrough-item" });
@@ -41,7 +43,7 @@ export class WalkthroughModal extends Modal {
 		}
 
 		const footer = contentEl.createDiv({ cls: "oar-walkthrough-footer" });
-		footer.createEl("small", { text: "You can reopen this guide from settings → first-time walkthrough.", cls: "oar-muted" });
+		footer.createEl("small", { text: "You can reopen this guide from settings → first-time walkthrough. NIPLEX-OBSIDIAN is user-owned vault data; exclude it from the graph only if you want a cleaner visual map.", cls: "oar-muted" });
 		const actions = footer.createDiv({ cls: "oar-walkthrough-actions" });
 		const skip = actions.createEl("button", { text: "Skip walkthrough" });
 		skip.addEventListener("click", () => void this.finish("Walkthrough skipped. You can reopen it from settings."));

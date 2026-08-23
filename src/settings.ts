@@ -1,7 +1,9 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { AgentSettings, ProviderId } from "./core/types";
+import { sanitizeVaultPath } from "./core/path-utils";
+import { ApprovalPolicyModal, type ApprovalPolicyHost } from "./ui/approval-policy-modal";
 
-export interface SettingsHost {
+export interface SettingsHost extends ApprovalPolicyHost {
 	settings: AgentSettings;
 	saveSettings(): Promise<void>;
 	setSecret(id: string, value: string): void;
@@ -10,6 +12,7 @@ export interface SettingsHost {
 	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<Array<{ id: string; label: string }>>;
 	openWalkthrough(): void;
 	openDiagnostics(): void;
+	openPrompts(): void;
 }
 
 export class AgenticResearchSettingTab extends PluginSettingTab {
@@ -116,6 +119,27 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 					await this.host.saveSettings();
 			}),
 			);
+
+			new Setting(containerEl)
+				.setName("System prompts")
+				.setDesc("View the protected built-in prompt and edit your additive custom system prompt.")
+				.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => this.host.openPrompts()));
+
+			new Setting(containerEl)
+				.setName("Edit approval policy")
+				.setDesc(this.host.settings.writeApprovalPolicy.mode === "timed" ? `Scoped approvals expire ${new Date(this.host.settings.writeApprovalPolicy.expiresAt).toLocaleTimeString()}; all other edits still ask.` : "Always ask before edits. Configure a short, scoped window only when you explicitly want it.")
+				.addButton((button) => button.setButtonText("Configure approvals").onClick(() => new ApprovalPolicyModal(this.app, this.host).open()));
+
+			new Setting(containerEl)
+				.setName("MOC folder")
+				.setDesc("Generated category maps are saved under this visible vault folder. The default is NIPLEX-OBSIDIAN/MOCs.")
+				.addText((text) => text.setValue(this.host.settings.mocFolder).onChange(async (value) => {
+					const safe = sanitizeVaultPath(value);
+					if (safe) {
+						this.host.settings.mocFolder = safe;
+						await this.host.saveSettings();
+					}
+				}));
 
 			new Setting(containerEl)
 				.setName("First-time walkthrough")

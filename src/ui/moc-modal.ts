@@ -3,7 +3,7 @@ import type { MocBuildResult, MocProgress } from "../core/moc-organizer";
 import type { MocCheckpoint } from "../core/types";
 
 export interface MocHost {
-	settings: { activeMocPath: string };
+	settings: { activeMocPath: string; mocFolder: string };
 	buildMocs(
 		mode: "create" | "adjust",
 		root: string,
@@ -16,9 +16,9 @@ export interface MocHost {
 	stopMocBuild(): void;
 }
 
-function rootFromActivePath(path: string): string {
+function rootFromActivePath(path: string, fallback: string): string {
 	const slash = path.lastIndexOf("/");
-	return slash > 0 ? path.slice(0, slash) : "MOCs";
+	return slash > 0 ? path.slice(0, slash) : fallback;
 }
 
 export class MocModal extends Modal {
@@ -79,7 +79,7 @@ export class MocModal extends Modal {
 			.setDesc("Generated category notes and the super-map are kept under this vault-relative folder.")
 			.addText((text) => {
 				this.rootEl = text.inputEl;
-				text.setValue(rootFromActivePath(this.host.settings.activeMocPath));
+				text.setValue(rootFromActivePath(this.host.settings.activeMocPath, this.host.settings.mocFolder));
 				text.setDisabled(this.busy);
 			});
 					const scopeNote = body.createDiv({ cls: "oar-moc-scope-note" });
@@ -90,9 +90,9 @@ export class MocModal extends Modal {
 
 		const explanation = body.createDiv({ cls: "oar-moc-explanation" });
 		explanation.createEl("strong", { text: "Output structure" });
-			explanation.createEl("p", { text: "Mocs/ → model-selected category notes → mocs super.md. Each category explains what belongs inside it, and the super-map recommends category combinations for better answers." });
+			explanation.createEl("p", { text: "MOCs/ → model-selected category notes → MOCs super.md. Each category explains what belongs inside it, and the super-map recommends category combinations for better answers." });
 		const tree = body.createEl("pre", { cls: "oar-moc-tree" });
-		tree.textContent = `${this.rootEl?.value.trim() || "MOCs"}/\n├── <model-selected category>.md\n├── <another category>.md\n└── MOCs super.md`;
+		tree.textContent = `${this.rootEl?.value.trim() || this.host.settings.mocFolder}/\n├── <model-selected category>.md\n├── <another category>.md\n└── MOCs super.md`;
 
 		this.progressEl = body.createEl("progress", { cls: "oar-moc-progress" });
 		this.progressEl.max = 1;
@@ -116,7 +116,7 @@ export class MocModal extends Modal {
 
 	private async run(): Promise<void> {
 		if (this.busy) return;
-		const root = this.rootEl?.value.trim() || "MOCs";
+		const root = this.rootEl?.value.trim() || this.host.settings.mocFolder;
 		const limit = this.mode === "adjust" ? 1 : 0;
 		this.busy = true;
 		this.paused = false;

@@ -725,3 +725,118 @@
 .oar-moc-modal .oar-moc-explanation {
 	word-break: break-word;
 }
+
+.oar-attach-button {
+	width: auto !important;
+	min-height: 2.25rem;
+	margin-bottom: var(--size-4-2);
+}
+
+.oar-attachment-list {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	flex-wrap: wrap;
+	max-height: 6rem;
+	margin-bottom: var(--size-4-2);
+	overflow-y: auto;
+	font-size: var(--font-ui-smaller);
+}
+
+.oar-attachment-label {
+	color: var(--text-muted);
+}
+
+.oar-attachment-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	max-width: 100%;
+	padding: var(--size-4-1) var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	word-break: break-word;
+}
+
+.oar-attachment-chip button {
+	width: auto !important;
+	min-height: 1.5rem;
+	padding: 0 var(--size-4-1);
+	color: var(--text-muted);
+}
+
+.oar-file-picker-search {
+	display: block;
+	width: 100%;
+	min-height: 2.5rem;
+	margin: var(--size-4-3) 0 var(--size-4-2);
+}
+
+.oar-file-picker-list {
+	max-height: min(52vh, 28rem);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+.oar-file-picker-item {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--size-4-2);
+	padding: var(--size-4-2);
+	border-bottom: 1px solid var(--background-modifier-border);
+	word-break: break-word;
+	cursor: pointer;
+}
+
+.oar-file-picker-item:last-child {
+	border-bottom: 0;
+}
+
+.oar-file-picker-item input {
+	margin-top: 0.2rem;
+	flex: 0 0 auto;
+}
+
+.oar-file-picker-modal {
+	max-height: 90vh;
+	overflow-y: auto;
+}
+
+.oar-approval-policy-modal label,
+.oar-approval-policy-modal select,
+.oar-approval-policy-modal input {
+	display: block;
+	width: 100%;
+	margin: var(--size-4-2) 0 var(--size-4-1);
+}
+
+.oar-approval-policy-modal select,
+.oar-approval-policy-modal input {
+	min-height: 2.5rem;
+}
+
+.oar-approval-policy-fields.is-hidden {
+	display: none;
+}
+
+.oar-approval-tool {
+	display: flex !important;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.oar-approval-tool input {
+	width: auto;
+	margin: 0;
+}
+
+.oar-chat-search {
+	flex: 1 1 10rem;
+	min-width: 9rem;
+	min-height: 2.25rem;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}

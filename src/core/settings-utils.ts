@@ -1,4 +1,6 @@
 import { DEFAULT_SETTINGS, type AgentSettings, type ModelCooldown, type MocCheckpoint, type MocCheckpointCategory } from "./types";
+import { normalizeUserSystemPrompt } from "./system-prompt";
+import { normalizeApprovalPolicy } from "./approval-policy";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
@@ -59,7 +61,10 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
 			mocTimeBudgetSeconds: numberValue("mocTimeBudgetSeconds", DEFAULT_SETTINGS.mocTimeBudgetSeconds, 30, 900),
 			mocCheckpoint: normalizeCheckpoint(source.mocCheckpoint),
 			stateFolder: typeof source.stateFolder === "string" && source.stateFolder.trim() ? source.stateFolder.trim() : DEFAULT_SETTINGS.stateFolder,
-		activeMocPath: typeof source.activeMocPath === "string" ? source.activeMocPath.trim() : "",
-		onboardingVersion: numberValue("onboardingVersion", DEFAULT_SETTINGS.onboardingVersion, 0, 100),
+			mocFolder: typeof source.mocFolder === "string" && source.mocFolder.trim() ? source.mocFolder.trim().replace(/^\/+|\/+$/g, "") : DEFAULT_SETTINGS.mocFolder,
+			activeMocPath: typeof source.activeMocPath === "string" ? source.activeMocPath.trim() : "",
+			userSystemPrompt: normalizeUserSystemPrompt(source.userSystemPrompt),
+			writeApprovalPolicy: normalizeApprovalPolicy(source.writeApprovalPolicy),
+			onboardingVersion: numberValue("onboardingVersion", DEFAULT_SETTINGS.onboardingVersion, 0, 100),
 	};
 }

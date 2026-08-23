@@ -18,6 +18,7 @@ export interface SavedChat {
 	provider: ProviderId;
 	model: string;
 	messages: ChatMessage[];
+	attachments?: string[];
 }
 
 export interface ToolDefinition {
@@ -111,6 +112,15 @@ export interface MocCheckpoint {
 	updatedAt: number;
 }
 
+export type WriteApprovalMode = "always" | "timed";
+
+export interface WriteApprovalPolicy {
+	mode: WriteApprovalMode;
+	expiresAt: number;
+	pathPrefix: string;
+	tools: string[];
+}
+
 export interface AgentSettings {
 	provider: ProviderId;
 	geminiModel: string;
@@ -125,7 +135,10 @@ export interface AgentSettings {
 	mocTimeBudgetSeconds: number;
 	mocCheckpoint?: MocCheckpoint;
 	stateFolder: string;
+	mocFolder: string;
 	activeMocPath: string;
+	userSystemPrompt: string;
+	writeApprovalPolicy: WriteApprovalPolicy;
 	onboardingVersion: number;
 }
 
@@ -142,6 +155,9 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	maxReadLines: 160,
 	mocTimeBudgetSeconds: 120,
 	stateFolder: ".obsidian-agentic-research",
+	mocFolder: "NIPLEX-OBSIDIAN/MOCs",
 	activeMocPath: "",
+	userSystemPrompt: "",
+	writeApprovalPolicy: { mode: "always", expiresAt: 0, pathPrefix: "", tools: [] },
 	onboardingVersion: 0,
 };
