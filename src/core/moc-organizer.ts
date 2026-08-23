@@ -1,3 +1,4 @@
+import { completeWithModelFallback } from "./model-fallback";
 import type { ProviderAdapter, ProviderRequest, ToolResult } from "./types";
 import type { NoteForCategorization, VaultContext } from "./vault-context";
 
@@ -34,7 +35,6 @@ interface ModelCombination {
 	reason?: unknown;
 }
 
-const MAX_NOTES_PER_RUN = 20;
 const MAX_CATEGORIES = 30;
 const MAX_CATEGORY_NAME_CHARS = 64;
 const MAX_DESCRIPTION_CHARS = 360;
@@ -105,8 +105,10 @@ function categoryDescription(category: MocCategory): string {
 export class MocOrganizer {
 	constructor(
 		private readonly provider: ProviderAdapter,
-		private readonly model: string,
+		private model: string,
 		private readonly vault: VaultContext,
+		private readonly fallbackModels: string[] = [],
+		private readonly autoFallback = true,
 	) {}
 
 	async build(
@@ -119,7 +121,7 @@ export class MocOrganizer {
 		const root = normalizeRoot(rootInput);
 		const superPath = `${root}/MOCs super.md`;
 		const excludedPrefix = `${root}/`;
-		const notes = await this.vault.getNotesForCategorization(mode === "adjust" ? 1 : Math.min(Math.max(Math.floor(maxNotes), 1), MAX_NOTES_PER_RUN), onlyPath, excludedPrefix);
+			const notes = await this.vault.getNotesForCategorization(mode === "adjust" ? 1 : Math.max(Math.floor(maxNotes), 0), onlyPath, excludedPrefix);
 		if (notes.length === 0) {
 			return { ok: false, isError: true, content: "No eligible Markdown notes were found for this incremental run.", notesProcessed: 0, categories: 0, rootPath: root, superPath };
 		}
@@ -136,7 +138,7 @@ export class MocOrganizer {
 				if (mode === "adjust") {
 					for (const category of categories.values()) category.notes.delete(note.path);
 				}
-				const result = await this.classify(note);
+					const result = await this.classify(note, onProgress, index + 1, notes.length);
 				const parsed = parseCategories(result);
 				const usable = parsed.length ? parsed : [{ name: "Uncategorized", description: "Notes that need more signals before a more specific category can be chosen.", reason: "The model did not return a usable category." }];
 				for (const item of usable) {
@@ -167,7 +169,7 @@ export class MocOrganizer {
 
 		const ordered = [...categories.values()].sort((a, b) => a.name.localeCompare(b.name));
 		onProgress({ phase: "classifying", current: notes.length, total: notes.length, message: `Asking ${this.model} to recommend useful category combinations` });
-		const recommendations = await this.recommendCombinations(ordered);
+			const recommendations = await this.recommendCombinations(ordered, onProgress, notes.length);
 		onProgress({ phase: "writing", current: 0, total: ordered.length + 1, message: "Writing category MOCs and the super-MOC" });
 		for (let index = 0; index < ordered.length; index += 1) {
 			const category = ordered[index];
@@ -183,7 +185,7 @@ export class MocOrganizer {
 		return { ok: true, content: `Processed ${notes.length} note(s) incrementally into ${ordered.length} model-discovered categories. ${superPath} is the recommended starting point.${suffix}`, notesProcessed: notes.length, categories: ordered.length, rootPath: root, superPath };
 	}
 
-	private async classify(note: NoteForCategorization): Promise<string> {
+	private async classify(note: NoteForCategorization, onProgress: (progress: MocProgress) => void, current: number, total: number): Promise<string> {
 		const properties = JSON.stringify(note.properties).slice(0, 1600);
 		const prompt = `Classify exactly one Obsidian note into zero to four meaningful categories. A note may belong to multiple categories. Infer category names from its frontmatter properties and bounded excerpt; do not invent personal facts that are not present. Category names should be short and useful as MOC titles. For every category, describe what belongs inside it and cite the signals used. Return JSON only in this shape: {"categories":[{"name":"...","description":"...","reason":"..."}]}.\n\nNote path: ${note.path}\nModified: ${new Date(note.modified).toISOString()}\nFrontmatter: ${properties}\nBounded excerpt (not the full note):\n${note.excerpt}`;
 		const request: ProviderRequest = {
@@ -194,7 +196,7 @@ export class MocOrganizer {
 			],
 			tools: [],
 		};
-		const response = await this.provider.complete(request);
+		const response = await this.complete(request, onProgress, current, total);
 		return response.text;
 	}
 
@@ -222,18 +224,19 @@ export class MocOrganizer {
 		return `# ${category.name}\n\n## What belongs here\n${categoryDescription(category)}\n\n## Why notes are assigned here\n${category.reason}\n\n## Notes\n${links.length ? links.join("\n") : "- No notes assigned yet."}\n`;
 	}
 
-	private async recommendCombinations(categories: MocCategory[]): Promise<string[]> {
+	private async recommendCombinations(categories: MocCategory[], onProgress: (progress: MocProgress) => void, current: number): Promise<string[]> {
 		const summary = categories.map((category) => ({ name: category.name, description: categoryDescription(category) }));
 		const prompt = `Suggest up to eight useful two- or three-category starting sets for a super-MOC. Use only the category names and descriptions below. Return JSON only: {"combinations":[{"categories":["Category A","Category B"],"reason":"When this set is useful"}]}. Do not invent category names.\n\n${JSON.stringify(summary)}`;
 		try {
-			const response = await this.provider.complete({
-				model: this.model,
-				messages: [
+				const response = await this.complete({
+					model: this.model,
+					messages: [
 					{ role: "system", content: "You are an information architect. Return valid JSON only." },
 					{ role: "user", content: prompt },
-				],
-				tools: [],
-			});
+					],
+					tools: [],
+				}, onProgress, current, current);
+
 			const validNames = new Set(categories.map((category) => categoryKey(category.name)));
 			return parseCombinations(response.text)
 				.map((item) => {
@@ -243,12 +246,25 @@ export class MocOrganizer {
 					return unique.length >= 2 ? `- ${unique.map((name) => `[[${name}]]`).join(" + ")} — ${reason}` : "";
 				})
 				.filter(Boolean);
-		} catch {
-			return [];
+					} catch {
+				return [];
+			}
 		}
-	}
 
-	private renderSuper(root: string, categories: MocCategory[], recommendations: string[]): string {
+		private async complete(request: ProviderRequest, onProgress: (progress: MocProgress) => void, current: number, total: number) {
+			const result = await completeWithModelFallback(this.provider, request, {
+				enabled: this.autoFallback,
+				configuredFallbackModels: this.fallbackModels,
+				onEvent: (event) => {
+					if (event.type === "checking") onProgress({ phase: "classifying", current, total, message: `${event.from} was rate-limited. Checking the ${this.provider.id} model catalogue…` });
+					else if (event.to) onProgress({ phase: "classifying", current, total, message: `Model ${event.from} was rate-limited → trying ${event.to}.` });
+				},
+			});
+			this.model = result.model;
+			return result.response;
+		}
+
+		private renderSuper(root: string, categories: MocCategory[], recommendations: string[]): string {
 		const categoryLines = categories.map((category) => `- [[${categoryFilePath(root, category.name).replace(/\.md$/i, "")}]] — ${categoryDescription(category)}`);
 		const combinations: string[] = recommendations.map((line) => line.replace(/\[\[([^\]]+)\]\]/g, (_match, name: string) => `[[${categoryFilePath(root, name).replace(/\.md$/i, "")}]]`));
 		for (let index = 0; index < categories.length && combinations.length < 8; index += 1) {

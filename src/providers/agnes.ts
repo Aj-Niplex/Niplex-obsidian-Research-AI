@@ -1,7 +1,9 @@
 import { requestUrl } from "obsidian";
-import type { ProviderAdapter, ProviderRequest, ProviderResponse, ToolCall } from "../core/types";
+import { ProviderRequestError } from "../core/provider-errors";
+import type { ProviderAdapter, ProviderModel, ProviderRequest, ProviderResponse, ToolCall } from "../core/types";
 
-const AGNES_URL = "https://apihub.agnes-ai.com/v1/chat/completions";
+const AGNES_BASE_URL = "https://apihub.agnes-ai.com/v1";
+const AGNES_URL = `${AGNES_BASE_URL}/chat/completions`;
 
 function parseArguments(value: unknown): Record<string, unknown> {
 	if (value && typeof value === "object") return value as Record<string, unknown>;
@@ -18,6 +20,21 @@ export class AgnesProvider implements ProviderAdapter {
 	readonly id = "agnes" as const;
 
 	constructor(private readonly apiKey: string) {}
+
+	async listModels(): Promise<ProviderModel[]> {
+		if (!this.apiKey.trim()) throw new Error("Agnes API key is not configured.");
+		const response = await requestUrl({
+			url: `${AGNES_BASE_URL}/models`,
+			method: "GET",
+			headers: { Authorization: `Bearer ${this.apiKey}` },
+			throw: false,
+		});
+		const payload = response.json as { data?: Array<{ id?: string; display_name?: string; displayName?: string }>; error?: { message?: string } };
+		if (response.status >= 400) throw new ProviderRequestError(payload.error?.message ?? `Agnes model catalogue failed with HTTP ${response.status}.`, response.status, "agnes_http_error");
+		return (payload.data ?? [])
+			.map((model) => ({ id: model.id?.trim() ?? "", label: model.display_name?.trim() || model.displayName?.trim() || model.id?.trim() || "Agnes model" }))
+			.filter((model) => Boolean(model.id));
+	}
 
 	async complete(request: ProviderRequest): Promise<ProviderResponse> {
 		if (!this.apiKey.trim()) throw new Error("Agnes API key is not configured.");
@@ -61,7 +78,7 @@ export class AgnesProvider implements ProviderAdapter {
 				message?: { content?: string | null; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> };
 			}>;
 		};
-		if (response.status >= 400) throw new Error(payload.error?.message ?? `Agnes request failed with HTTP ${response.status}.`);
+		if (response.status >= 400) throw new ProviderRequestError(payload.error?.message ?? `Agnes request failed with HTTP ${response.status}.`, response.status, "agnes_http_error");
 		const choice = payload.choices?.[0];
 		if (!choice?.message) throw new Error(`Agnes returned no usable response${choice?.finish_reason ? ` (${choice.finish_reason})` : ""}.`);
 		const message = choice.message;

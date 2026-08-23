@@ -45,9 +45,15 @@ export interface ProviderResponse {
 	toolCalls: ToolCall[];
 }
 
+export interface ProviderModel {
+	id: string;
+	label: string;
+}
+
 export interface ProviderAdapter {
 	readonly id: ProviderId;
 	complete(request: ProviderRequest): Promise<ProviderResponse>;
+	listModels?(): Promise<ProviderModel[]>;
 }
 
 export interface BoundedReadResult {
@@ -76,20 +82,28 @@ export interface AgentSettings {
 	provider: ProviderId;
 	geminiModel: string;
 	agnesModel: string;
+	geminiFallbackModels: string[];
+	agnesFallbackModels: string[];
+	autoFallbackOnRateLimit: boolean;
 	maxIterations: number;
 	maxToolResultChars: number;
 	maxReadLines: number;
 	stateFolder: string;
 	activeMocPath: string;
+	onboardingVersion: number;
 }
 
 export const DEFAULT_SETTINGS: AgentSettings = {
 	provider: "gemini",
 	geminiModel: "gemini-3.6-flash",
 	agnesModel: "agnes-2.0-flash",
+	geminiFallbackModels: [],
+	agnesFallbackModels: [],
+	autoFallbackOnRateLimit: true,
 	maxIterations: 8,
 	maxToolResultChars: 12000,
 	maxReadLines: 160,
 	stateFolder: ".obsidian-agentic-research",
 	activeMocPath: "",
+	onboardingVersion: 0,
 };

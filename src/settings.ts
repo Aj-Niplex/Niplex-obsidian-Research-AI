@@ -7,6 +7,8 @@ export interface SettingsHost {
 	setSecret(id: string, value: string): void;
 	clearSecret(id: string): void;
 	getSecret(id: string): string | null;
+	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<Array<{ id: string; label: string }>>;
+	openWalkthrough(): void;
 }
 
 export class AgenticResearchSettingTab extends PluginSettingTab {
@@ -60,8 +62,42 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 				}),
 			);
 
-		new Setting(containerEl)
-			.setName("Gemini model")
+			new Setting(containerEl)
+				.setName("Automatic rate-limit fallback")
+				.setDesc("If the selected model returns a rate-limit or quota error, try another model from this provider's catalogue. Providers are never switched silently.")
+				.addToggle((toggle) => toggle.setValue(this.host.settings.autoFallbackOnRateLimit).onChange(async (value) => {
+					this.host.settings.autoFallbackOnRateLimit = value;
+					await this.host.saveSettings();
+				}));
+
+			const fallbackField = provider === "gemini" ? "geminiFallbackModels" : "agnesFallbackModels";
+			const fallbackModels = this.host.settings[fallbackField];
+			new Setting(containerEl)
+				.setName(`${provider === "gemini" ? "Gemini" : "Agnes"} fallback order`)
+				.setDesc("Optional comma-separated model ids to try first. The live catalogue is checked before a configured ID is used when available.")
+				.addTextArea((text) => {
+					text.setValue(fallbackModels.join(", "));
+					text.inputEl.rows = 2;
+					text.onChange(async (value) => {
+						this.host.settings[fallbackField] = [...new Set(value.split(",").map((model) => model.trim()).filter(Boolean))];
+						await this.host.saveSettings();
+					});
+				});
+
+			new Setting(containerEl)
+				.setName("Live model catalogue")
+				.setDesc("Refresh the provider catalogue used for model selection and rate-limit fallback.")
+				.addButton((button) => button.setButtonText("Refresh").onClick(async () => {
+					try {
+						const models = await this.host.getModelCatalogue(provider, true);
+						new Notice(`${models.length} ${provider} model${models.length === 1 ? "" : "s"} available.`);
+					} catch (error) {
+						new Notice(error instanceof Error ? error.message : "Could not load the model catalogue.");
+					}
+				}));
+
+			new Setting(containerEl)
+				.setName("Gemini model")
 			.setDesc("Model name used when Gemini is selected.")
 			.addText((text) =>
 				text.setValue(this.host.settings.geminiModel).onChange(async (value) => {
@@ -80,8 +116,13 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 			}),
 			);
 
-		new Setting(containerEl)
-			.setName("Maximum agent steps")
+			new Setting(containerEl)
+				.setName("First-time walkthrough")
+				.setDesc("Review privacy, bounded reading, moc-first navigation, fallback, and write approvals.")
+				.addButton((button) => button.setButtonText("Show walkthrough").onClick(() => this.host.openWalkthrough()));
+
+			new Setting(containerEl)
+				.setName("Maximum agent steps")
 			.setDesc("Hard cap on tool-loop iterations per prompt.")
 			.addText((text) =>
 				text.setValue(String(this.host.settings.maxIterations)).onChange(async (value) => {

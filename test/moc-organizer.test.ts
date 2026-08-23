@@ -57,3 +57,19 @@ test("builds described multi-membership category MOCs incrementally", async () =
 	assert.ok(progress.includes("writing"));
 	assert.ok(progress.includes("complete"));
 });
+
+test("processes all eligible notes when the create limit is zero", async () => {
+	const writes = new Map<string, string>();
+	const fakeVault = {
+		getNotesForCategorization: async (limit: number): Promise<NoteForCategorization[]> => limit === 0 ? notes : notes.slice(0, limit),
+		writeGeneratedNote: async (path: string, content: string): Promise<ToolResult> => {
+			writes.set(path, content);
+			return { ok: true, content: `Created ${path}` };
+		},
+	} as unknown as VaultContext;
+	const organizer = new MocOrganizer(new FakeProvider(), "test-model", fakeVault);
+	const result = await organizer.build("create", "MOCs", 0, () => undefined);
+	assert.equal(result.ok, true);
+	assert.equal(result.notesProcessed, notes.length);
+	assert.match(writes.get("MOCs/Goals.md") ?? "", /Projects\/Second\]\]/);
+});

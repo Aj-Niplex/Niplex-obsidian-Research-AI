@@ -174,6 +174,15 @@ export class VaultContext {
 			.slice(0, 50);
 	}
 
+	getSuperMocFiles(): string[] {
+		return this.vault
+			.getMarkdownFiles()
+			.filter((file) => !this.isProtected(file.path))
+			.filter((file) => /(?:^|\/)MOCs super\.md$/i.test(file.path))
+			.sort((a, b) => b.stat.mtime - a.stat.mtime)
+			.map((file) => file.path);
+	}
+
 	getRecentMarkdownFiles(limit = 10): string[] {
 		return this.vault
 			.getMarkdownFiles()
@@ -201,15 +210,15 @@ export class VaultContext {
 		return file ? this.vault.read(file) : null;
 	}
 
-	async getNotesForCategorization(limit = 12, onlyPath = "", excludedPrefix = "MOCs/"): Promise<NoteForCategorization[]> {
+	async getNotesForCategorization(limit = 0, onlyPath = "", excludedPrefix = "MOCs/"): Promise<NoteForCategorization[]> {
 		const cleanOnlyPath = onlyPath ? sanitizeVaultPath(onlyPath) : "";
 		const candidates = this.vault
 			.getMarkdownFiles()
 			.filter((file) => !this.isProtected(file.path))
 			.filter((file) => !excludedPrefix || !file.path.startsWith(excludedPrefix))
 			.filter((file) => !cleanOnlyPath || file.path === cleanOnlyPath)
-			.sort((a, b) => b.stat.mtime - a.stat.mtime)
-			.slice(0, Math.min(Math.max(Math.floor(limit), 1), 20));
+				.sort((a, b) => b.stat.mtime - a.stat.mtime)
+				.slice(0, limit > 0 ? Math.floor(limit) : undefined);
 		const notes: NoteForCategorization[] = [];
 		for (const file of candidates) {
 			const text = await this.vault.read(file);

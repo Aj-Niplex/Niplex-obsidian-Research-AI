@@ -428,3 +428,200 @@
 .oar-moc-modal .setting-item-control input {
 	min-height: 2.4rem;
 }
+
+.oar-provider-select {
+	min-height: 2.25rem;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.oar-view textarea,
+.oar-view button,
+.oar-moc-modal button,
+.oar-view select,
+.oar-moc-modal input,
+.oar-moc-modal textarea,
+.oar-walkthrough-modal button {
+	font-family: var(--font-interface, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.oar-moc-scope-note {
+	margin: var(--size-4-3) 0;
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: color-mix(in srgb, var(--interactive-accent) 7%, var(--background-secondary));
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+}
+
+.oar-moc-scope-note strong {
+	display: block;
+	margin-bottom: var(--size-4-1);
+	color: var(--text-normal);
+}
+
+.oar-moc-scope-note p {
+	margin: 0;
+}
+
+.oar-walkthrough-modal {
+	width: min(38rem, 92vw);
+	max-width: 100%;
+	padding-bottom: max(var(--size-4-3), env(safe-area-inset-bottom));
+	font-family: var(--font-interface, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.oar-walkthrough-kicker {
+	margin-bottom: var(--size-4-1);
+	color: var(--interactive-accent);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-weight-semibold, 600);
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+.oar-walkthrough-modal h2 {
+	margin-top: 0;
+	font-family: var(--font-interface, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.oar-walkthrough-list {
+	display: grid;
+	gap: var(--size-4-2);
+	margin: var(--size-4-3) 0;
+}
+
+.oar-walkthrough-item {
+	display: grid;
+	grid-template-columns: 2rem 1fr;
+	gap: var(--size-4-2);
+	align-items: start;
+	padding: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.oar-walkthrough-number {
+	display: grid;
+	place-items: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-weight: var(--font-weight-semibold, 600);
+}
+
+.oar-walkthrough-copy strong {
+	color: var(--text-normal);
+}
+
+.oar-walkthrough-copy p {
+	margin: var(--size-4-1) 0 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+}
+
+.oar-walkthrough-footer {
+	display: grid;
+	gap: var(--size-4-2);
+	margin-top: var(--size-4-3);
+}
+
+.oar-walkthrough-actions {
+	display: flex;
+	gap: var(--size-4-2);
+	justify-content: flex-end;
+	flex-wrap: wrap;
+}
+
+.oar-walkthrough-actions button {
+	min-height: 2.6rem;
+}
+
+@media (max-width: 600px) {
+	.oar-toolbar label {
+		flex-basis: 100%;
+		margin-top: var(--size-4-1);
+	}
+
+	.oar-provider-select,
+	.oar-model-select {
+		flex: 1 1 100%;
+		width: 100%;
+	}
+
+	.oar-walkthrough-modal {
+		width: 100%;
+	}
+
+	.oar-walkthrough-actions {
+		flex-direction: column-reverse;
+	}
+
+	.oar-walkthrough-actions button {
+		width: 100%;
+	}
+}
+
+.oar-markdown {
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
+.oar-markdown table,
+.oar-markdown pre {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.oar-walkthrough-modal,
+.oar-moc-modal {
+	max-height: min(85vh, 48rem);
+	overflow-y: auto;
+}
+
+.oar-walkthrough-actions button:focus-visible,
+.oar-toolbar button:focus-visible,
+.oar-toolbar select:focus-visible,
+.oar-composer textarea:focus-visible,
+.oar-composer button:focus-visible,
+.oar-moc-modal button:focus-visible,
+.oar-moc-modal input:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.oar-busy {
+	min-height: 2.75rem;
+}
+
+.oar-composer-actions {
+	display: flex;
+	gap: var(--size-4-2);
+	flex-wrap: wrap;
+}
+
+.oar-composer-actions button {
+	flex: 1 1 12rem;
+	width: auto;
+}
+
+.oar-continue-button {
+	background: var(--background-secondary);
+	color: var(--text-normal);
+}
+
+@media (max-width: 600px) {
+	.oar-composer-actions {
+		flex-direction: column;
+	}
+
+	.oar-composer-actions button {
+		width: 100%;
+	}
+}

@@ -1,6 +1,6 @@
 import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from "obsidian";
 import type { AgentEvent, AgentRunResult } from "../core/agent-runtime";
-import type { AgentSettings, ChatMessage, ProviderId, SavedChat } from "../core/types";
+import type { AgentSettings, ChatMessage, ProviderId, ProviderModel, SavedChat } from "../core/types";
 import { MocModal, type MocHost } from "./moc-modal";
 
 export const AGENT_VIEW_TYPE = "obsidian-agentic-research-view";
@@ -11,6 +11,7 @@ export interface AgentViewHost extends MocHost {
 	runAgent(prompt: string, history: ChatMessage[], emit: (event: AgentEvent) => void): Promise<AgentRunResult>;
 	getChats(): SavedChat[];
 	getChat(id: string): SavedChat | null;
+	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<ProviderModel[]>;
 	saveChat(chat: SavedChat): Promise<void>;
 	deleteChat(id: string): Promise<void>;
 }
@@ -25,6 +26,8 @@ export class AgentView extends ItemView {
 	private transcriptEl!: HTMLElement;
 	private inputEl!: HTMLTextAreaElement;
 	private runButton!: HTMLButtonElement;
+	private continueButton!: HTMLButtonElement;
+	private providerSelect!: HTMLSelectElement;
 	private modelSelect!: HTMLSelectElement;
 	private chatSelect!: HTMLSelectElement;
 	private saveChatButton!: HTMLButtonElement;
@@ -70,10 +73,16 @@ export class AgentView extends ItemView {
 		this.deleteChatButton.addEventListener("click", () => void this.deleteCurrentChat());
 		const mocButton = toolbar.createEl("button", { text: "MOC" });
 		mocButton.addEventListener("click", () => new MocModal(this.app, this.host, () => this.refreshScopeText()).open());
-		toolbar.createEl("label", { text: "Model" });
-		this.modelSelect = toolbar.createEl("select", { cls: "oar-model-select", attr: { "aria-label": "Model" } });
-		this.refreshModelOptions();
-		this.modelSelect.addEventListener("change", () => void this.changeProvider(this.modelSelect.value as ProviderId));
+			toolbar.createEl("label", { text: "Provider" });
+			this.providerSelect = toolbar.createEl("select", { cls: "oar-provider-select", attr: { "aria-label": "Provider" } });
+			this.providerSelect.add(new Option("Google Gemini", "gemini"));
+			this.providerSelect.add(new Option("Agnes AI", "agnes"));
+			this.providerSelect.value = this.host.settings.provider;
+			this.providerSelect.addEventListener("change", () => void this.changeProvider(this.providerSelect.value as ProviderId));
+			toolbar.createEl("label", { text: "Model" });
+			this.modelSelect = toolbar.createEl("select", { cls: "oar-model-select", attr: { "aria-label": "Model" } });
+			void this.refreshModelOptions();
+			this.modelSelect.addEventListener("change", () => void this.changeModel(this.modelSelect.value));
 		this.refreshChatOptions();
 
 		this.transcriptEl = root.createDiv({ cls: "oar-transcript" });
@@ -83,8 +92,15 @@ export class AgentView extends ItemView {
 		this.inputEl = composer.createEl("textarea", {
 			attr: { rows: "4", placeholder: "Ask the agent to research your vault…" },
 		});
-		this.runButton = composer.createEl("button", { text: "Run agent", cls: "mod-cta" });
-		this.runButton.addEventListener("click", () => void this.submit());
+			const composerActions = composer.createDiv({ cls: "oar-composer-actions" });
+			this.runButton = composerActions.createEl("button", { text: "Run agent", cls: "mod-cta" });
+			this.runButton.addEventListener("click", () => void this.submit());
+			this.continueButton = composerActions.createEl("button", { text: "Continue bounded research", cls: "oar-continue-button" });
+			this.continueButton.disabled = true;
+			this.continueButton.addEventListener("click", () => {
+				this.inputEl.value = "Continue the research from the existing bounded evidence. Read another relevant file only when needed, then update the answer.";
+				void this.submit();
+			});
 		this.inputEl.addEventListener("keydown", (event) => {
 			if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
 				event.preventDefault();
@@ -100,19 +116,39 @@ export class AgentView extends ItemView {
 			: "Scope: adaptive vault search; no MOC selected";
 	}
 
-	private refreshModelOptions(): void {
+	private async refreshModelOptions(forceRefresh = false): Promise<void> {
 		if (!this.modelSelect) return;
+		const provider = this.host.settings.provider;
+		const selected = provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
+		let models: ProviderModel[] = [];
+		try {
+			models = await this.host.getModelCatalogue(provider, forceRefresh);
+		} catch {
+			models = [];
+		}
+		const entries = [{ id: selected, label: `${selected} · ${models.length ? "configured" : "catalogue unavailable"}` }, ...models.filter((model) => model.id !== selected)];
 		this.modelSelect.empty();
-		this.modelSelect.add(new Option(`Gemini · ${this.host.settings.geminiModel}`, "gemini"));
-		this.modelSelect.add(new Option(`Agnes · ${this.host.settings.agnesModel}`, "agnes"));
-		this.modelSelect.value = this.host.settings.provider;
+		for (const model of entries) this.modelSelect.add(new Option(model.label, model.id));
+		this.modelSelect.value = selected;
+	}
+
+	private async changeModel(model: string): Promise<void> {
+		const value = model.trim();
+		if (!value) return;
+		if (this.host.settings.provider === "gemini") this.host.settings.geminiModel = value;
+		else this.host.settings.agnesModel = value;
+		this.currentChat.provider = this.host.settings.provider;
+		this.currentChat.model = value;
+		await this.host.saveSettings();
+		new Notice(`Next agent turn will use ${value}.`);
 	}
 
 	private async changeProvider(provider: ProviderId): Promise<void> {
 		this.host.settings.provider = provider;
-		await this.host.saveSettings();
 		this.currentChat.provider = provider;
 		this.currentChat.model = provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
+		await this.host.saveSettings();
+		await this.refreshModelOptions();
 		new Notice(`Next agent turn will use ${this.currentChat.model}.`);
 	}
 
@@ -134,9 +170,14 @@ export class AgentView extends ItemView {
 		if (!chat) return;
 		this.currentChat = chat;
 		this.currentChatPersisted = true;
-		this.host.settings.provider = chat.provider;
-		void this.host.saveSettings();
-		this.refreshModelOptions();
+			this.host.settings.provider = chat.provider;
+			if (chat.model) {
+				if (chat.provider === "gemini") this.host.settings.geminiModel = chat.model;
+				else this.host.settings.agnesModel = chat.model;
+			}
+			this.providerSelect.value = chat.provider;
+			void this.host.saveSettings();
+			void this.refreshModelOptions();
 		this.renderCurrentChat();
 	}
 
@@ -144,8 +185,9 @@ export class AgentView extends ItemView {
 		this.currentChat = newChat();
 		this.currentChat.provider = this.host.settings.provider;
 		this.currentChat.model = this.host.settings.provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
-		this.currentChatPersisted = false;
-		this.renderCurrentChat();
+			this.currentChatPersisted = false;
+			void this.refreshModelOptions();
+			this.renderCurrentChat();
 		this.refreshChatOptions();
 	}
 
@@ -168,7 +210,7 @@ export class AgentView extends ItemView {
 			return;
 		}
 		this.currentChat.provider = this.host.settings.provider;
-		this.currentChat.model = this.host.settings.provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
+		if (!this.currentChat.model) this.currentChat.model = this.host.settings.provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
 		await this.host.saveChat(this.currentChat);
 		this.currentChatPersisted = true;
 		this.refreshChatOptions();
@@ -188,12 +230,15 @@ export class AgentView extends ItemView {
 
 	private appendSystem(text: string): void {
 		const block = this.transcriptEl.createDiv({ cls: "oar-message oar-system" });
+		block.setAttribute("role", "status");
 		block.createDiv({ text });
 		this.scrollToBottom();
 	}
 
 	private appendUser(text: string): void {
 		const block = this.transcriptEl.createDiv({ cls: "oar-message oar-user" });
+		block.setAttribute("role", "article");
+		block.setAttribute("aria-label", "Your message");
 		block.createEl("strong", { text: "You" });
 		block.createDiv({ text });
 		this.scrollToBottom();
@@ -201,6 +246,8 @@ export class AgentView extends ItemView {
 
 	private appendAssistant(text: string): void {
 		const block = this.transcriptEl.createDiv({ cls: "oar-message oar-assistant" });
+		block.setAttribute("role", "article");
+		block.setAttribute("aria-label", "Agent response");
 		block.createEl("strong", { text: "Agent" });
 		const content = block.createDiv({ cls: "oar-markdown" });
 		void MarkdownRenderer.render(this.app, text, content, "", this);
@@ -296,7 +343,9 @@ export class AgentView extends ItemView {
 
 	private showImmediateBusy(): void {
 		this.busyEl = this.transcriptEl.createDiv({ cls: "oar-busy" });
-		this.busyEl.createSpan({ cls: "oar-spinner" });
+		this.busyEl.setAttribute("role", "status");
+		this.busyEl.setAttribute("aria-live", "polite");
+		this.busyEl.createSpan({ cls: "oar-spinner", attr: { "aria-hidden": "true" } });
 		this.busyEl.createSpan({ text: "Starting agent…" });
 		this.scrollToBottom();
 	}
@@ -313,13 +362,17 @@ export class AgentView extends ItemView {
 		}
 		this.showImmediateBusy();
 		this.runButton.disabled = true;
+		this.continueButton.disabled = true;
 		this.inputEl.disabled = true;
 		this.runButton.textContent = "Working…";
 		try {
 			const result = await this.host.runAgent(prompt, history, (event) => this.appendEvent(event));
-			this.currentChat.messages = result.messages.filter((message) => message.role !== "system");
+				this.currentChat.model = result.model;
+				this.continueButton.disabled = !result.stopped;
+				this.currentChat.messages = result.messages.filter((message) => message.role !== "system");
 			if (this.currentChatPersisted) await this.host.saveChat(this.currentChat);
 		} catch (error) {
+			this.continueButton.disabled = true;
 			this.appendEvent({ type: "error", phase: "error", message: error instanceof Error ? error.message : "Agent run failed." });
 		} finally {
 			this.busyEl?.remove();
@@ -327,7 +380,7 @@ export class AgentView extends ItemView {
 			this.runButton.disabled = false;
 			this.inputEl.disabled = false;
 			this.runButton.textContent = "Run agent";
-			this.refreshModelOptions();
+				void this.refreshModelOptions();
 			this.refreshChatOptions();
 		}
 	}

@@ -23,7 +23,6 @@ export class MocModal extends Modal {
 	private readonly onDone: () => void;
 	private mode: "create" | "adjust" = "create";
 	private rootEl!: HTMLInputElement;
-	private limitEl!: HTMLInputElement;
 	private statusEl!: HTMLElement;
 	private progressEl!: HTMLProgressElement;
 	private actionButton!: HTMLButtonElement;
@@ -78,21 +77,15 @@ export class MocModal extends Modal {
 				text.setValue(rootFromActivePath(this.host.settings.activeMocPath));
 				text.setDisabled(this.busy);
 			});
-		new Setting(body)
-			.setName("Notes per run")
-			.setDesc(this.mode === "create" ? "Each note is sent separately with a bounded excerpt. Maximum 20 per run." : "Adjust processes only the most recently edited eligible note.")
-			.addText((text) => {
-				this.limitEl = text.inputEl;
-				text.inputEl.type = "number";
-				text.inputEl.min = "1";
-				text.inputEl.max = "20";
-				text.setValue(this.mode === "create" ? "12" : "1");
-				text.setDisabled(this.mode === "adjust" || this.busy);
-			});
+					const scopeNote = body.createDiv({ cls: "oar-moc-scope-note" });
+			scopeNote.createEl("strong", { text: this.mode === "create" ? "Full eligible vault discovery" : "One-note adjustment" });
+			scopeNote.createEl("p", { text: this.mode === "create" ? "The organizer processes every eligible Markdown note sequentially. Each model request receives only frontmatter, metadata, and a bounded excerpt; no vault-wide body is uploaded in one call." : "Only the most recently edited eligible note is reclassified, while existing category links are retained." });
+
+
 
 		const explanation = body.createDiv({ cls: "oar-moc-explanation" });
 		explanation.createEl("strong", { text: "Output structure" });
-		explanation.createEl("p", { text: "Mocs/ → model-selected category notes → mocs super.md. Each category explains what belongs inside it, and the super-map recommends category combinations for better answers." });
+			explanation.createEl("p", { text: "Mocs/ → model-selected category notes → mocs super.md. Each category explains what belongs inside it, and the super-map recommends category combinations for better answers." });
 		const tree = body.createEl("pre", { cls: "oar-moc-tree" });
 		tree.textContent = `${this.rootEl?.value.trim() || "MOCs"}/\n├── <model-selected category>.md\n├── <another category>.md\n└── MOCs super.md`;
 
@@ -101,7 +94,7 @@ export class MocModal extends Modal {
 		this.progressEl.value = 0;
 		this.statusEl = body.createDiv({ cls: "oar-moc-status oar-muted", text: this.mode === "create" ? "Ready to discover categories." : "Ready to adjust the latest edited note." });
 		this.actionButton = body.createEl("button", {
-			text: this.mode === "create" ? "Discover categories incrementally" : "Adjust with latest note",
+			text: this.mode === "create" ? "Discover all eligible categories" : "Adjust with latest note",
 			cls: "mod-cta",
 		});
 		this.actionButton.addEventListener("click", () => void this.run());
@@ -110,8 +103,7 @@ export class MocModal extends Modal {
 	private async run(): Promise<void> {
 		if (this.busy) return;
 		const root = this.rootEl?.value.trim() || "MOCs";
-		const parsedLimit = Number.parseInt(this.limitEl?.value ?? "12", 10);
-		const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 20) : 12;
+		const limit = this.mode === "adjust" ? 1 : 0;
 		this.busy = true;
 		this.actionButton.addClass("is-loading");
 		this.actionButton.textContent = this.mode === "create" ? "Discovering categories…" : "Adjusting latest note…";

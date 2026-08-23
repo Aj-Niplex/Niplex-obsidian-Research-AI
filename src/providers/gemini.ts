@@ -1,5 +1,6 @@
 import { requestUrl } from "obsidian";
-import type { ChatMessage, ProviderAdapter, ProviderRequest, ProviderResponse, ToolCall } from "../core/types";
+import { ProviderRequestError } from "../core/provider-errors";
+import type { ChatMessage, ProviderAdapter, ProviderModel, ProviderRequest, ProviderResponse, ToolCall } from "../core/types";
 
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -51,6 +52,22 @@ export class GeminiProvider implements ProviderAdapter {
 
 	constructor(private readonly apiKey: string) {}
 
+	async listModels(): Promise<ProviderModel[]> {
+		if (!this.apiKey.trim()) throw new Error("Gemini API key is not configured.");
+		const response = await requestUrl({
+			url: "https://generativelanguage.googleapis.com/v1beta/models",
+			method: "GET",
+			headers: { "x-goog-api-key": this.apiKey },
+			throw: false,
+		});
+		const payload = response.json as { models?: Array<{ name?: string; displayName?: string; supportedGenerationMethods?: string[] }> };
+		if (response.status >= 400) throw new ProviderRequestError(errorMessage(payload, response.status), response.status, "gemini_http_error");
+		return (payload.models ?? [])
+			.filter((model) => model.name?.startsWith("models/") && model.supportedGenerationMethods?.includes("generateContent"))
+			.map((model) => ({ id: model.name?.replace(/^models\//, "") ?? "", label: model.displayName?.trim() || model.name?.replace(/^models\//, "") || "Gemini model" }))
+			.filter((model) => Boolean(model.id));
+	}
+
 	async complete(request: ProviderRequest): Promise<ProviderResponse> {
 		if (!this.apiKey.trim()) throw new Error("Gemini API key is not configured.");
 		const mapped = toGeminiContents(request.messages);
@@ -84,9 +101,9 @@ export class GeminiProvider implements ProviderAdapter {
 				}>;
 			};
 
-			if (response.status >= 400) throw new Error(errorMessage(payload, response.status));
+			if (response.status >= 400) throw new ProviderRequestError(errorMessage(payload, response.status), response.status, "gemini_http_error");
 			const candidate = payload.candidates?.[0];
-			if (!candidate) throw new Error("Gemini returned no candidates; check the model name, safety settings, or API key.");
+			if (!candidate) throw new ProviderRequestError("Gemini returned no candidates; check the model name, safety settings, or API key.", response.status, "gemini_no_candidate");
 			const parts = candidate.content?.parts ?? [];
 		const toolCalls: ToolCall[] = [];
 		const text = parts
