@@ -1,6 +1,6 @@
 import { Notice, Platform, Plugin, WorkspaceLeaf } from "obsidian";
 import { AgentRuntime, type AgentEvent, type AgentRunResult } from "./core/agent-runtime";
-import { DEFAULT_SETTINGS, type AgentSettings, type ChatMessage, type DiagnosticEntry, type ProviderId, type ProviderModel, type SavedChat, type ToolCall, type ToolDefinition, type ToolResult } from "./core/types";
+import { DEFAULT_SETTINGS, type AgentSettings, type ChatMessage, type DiagnosticEntry, type MocCheckpoint, type ProviderId, type ProviderModel, type SavedChat, type ToolCall, type ToolDefinition, type ToolResult } from "./core/types";
 import { VaultContext } from "./core/vault-context";
 import { normalizeAgentSettings } from "./core/settings-utils";
 import { createDiagnosticEntry, DiagnosticsStore } from "./core/diagnostics";
@@ -40,6 +40,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	settings: AgentSettings = { ...DEFAULT_SETTINGS };
 	private chats: SavedChat[] = [];
 	private diagnostics = new DiagnosticsStore();
+	private activeMocOrganizer: MocOrganizer | null = null;
 	private readonly modelCatalogueCache = new Map<ProviderId, { fetchedAt: number; models: ProviderModel[] }>();
 
 	async onload(): Promise<void> {
@@ -147,10 +148,36 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 
 	async getModelCatalogue(providerId = this.settings.provider, forceRefresh = false): Promise<ProviderModel[]> {
 		const cached = this.modelCatalogueCache.get(providerId);
-		if (!forceRefresh && cached && Date.now() - cached.fetchedAt < 10 * 60 * 1000) return cached.models;
+		const healthy = (models: ProviderModel[]) => models.filter((model) => {
+			const cooldown = this.settings.modelCooldowns[`${providerId}/${model.id}`];
+			if (!cooldown || cooldown.until <= Date.now()) return true;
+			delete this.settings.modelCooldowns[`${providerId}/${model.id}`];
+			return false;
+		});
+		if (!forceRefresh && cached && Date.now() - cached.fetchedAt < 10 * 60 * 1000) return healthy(cached.models);
 		const models = (await this.getProvider(providerId).listModels?.()) ?? [];
 		this.modelCatalogueCache.set(providerId, { fetchedAt: Date.now(), models });
-		return models;
+		return healthy(models);
+	}
+
+	private async ensureUsableModel(providerId = this.settings.provider): Promise<string> {
+		const configured = providerId === "gemini" ? this.settings.geminiModel : this.settings.agnesModel;
+		try {
+			const models = await this.getModelCatalogue(providerId);
+			const selected = models.find((model) => model.id === configured);
+			if (selected) return configured;
+			const replacement = models.find((model) => /(?:flash|mini|instant)/i.test(model.id)) ?? models[0];
+			if (replacement) {
+				if (providerId === "gemini") this.settings.geminiModel = replacement.id;
+				else this.settings.agnesModel = replacement.id;
+				this.recordDiagnostic("info", "model-auto-replaced", `Selected model was not in the account-accessible chat catalogue; using ${replacement.id}.`, replacement.id);
+				await this.persistData();
+				return replacement.id;
+			}
+		} catch (error) {
+			this.recordDiagnostic("warn", "model-catalogue-unavailable", error instanceof Error ? error.message : "Model catalogue unavailable.", configured);
+		}
+		return configured;
 	}
 
 	private createVaultContext(): VaultContext {
@@ -166,6 +193,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		history: ChatMessage[],
 		emit: (event: AgentEvent) => void,
 	): Promise<AgentRunResult> {
+		await this.ensureUsableModel(this.settings.provider);
 		const hints: string[] = [];
 		const activeFile = this.app.workspace.getActiveFile();
 		if (activeFile) hints.push(`The currently open note is ${activeFile.path}. Use tools to inspect it if relevant.`);
@@ -208,6 +236,14 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		return this.createVaultContext().getRecentMarkdownFiles(limit);
 	}
 
+	getMocCheckpoint(): MocCheckpoint | undefined {
+		return this.settings.mocCheckpoint;
+	}
+
+	stopMocBuild(): void {
+		this.activeMocOrganizer?.requestStop();
+	}
+
 	async createMoc(path: string): Promise<ToolResult> {
 		return this.createVaultContext().createMoc(path);
 	}
@@ -222,17 +258,27 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	}
 
 	async buildMocs(mode: "create" | "adjust", root: string, maxNotes: number, onProgress: (progress: MocProgress) => void, onlyPath = "") {
-		const model = this.settings.provider === "gemini" ? this.settings.geminiModel : this.settings.agnesModel;
+		const model = await this.ensureUsableModel(this.settings.provider);
 		const fallbackModels = this.settings.provider === "gemini" ? this.settings.geminiFallbackModels : this.settings.agnesFallbackModels;
+		const checkpoint = this.settings.mocCheckpoint?.mode === mode && this.settings.mocCheckpoint.rootPath === root.trim().replace(/^\/+|\/+$/g, "") && this.settings.mocCheckpoint.onlyPath === onlyPath ? this.settings.mocCheckpoint : undefined;
+		const organizer = new MocOrganizer(this.getProvider(), model, this.createVaultContext(), fallbackModels, this.settings.autoFallbackOnRateLimit, this.settings.modelCooldowns, (level, event, message, usedModel) => this.recordDiagnostic(level, event, message, usedModel), checkpoint, this.settings.mocTimeBudgetSeconds, (nextCheckpoint) => {
+			this.settings.mocCheckpoint = nextCheckpoint;
+			return this.persistData();
+		});
+		this.activeMocOrganizer = organizer;
 		try {
-			const result = await new MocOrganizer(this.getProvider(), model, this.createVaultContext(), fallbackModels, this.settings.autoFallbackOnRateLimit, this.settings.modelCooldowns, (level, event, message, usedModel) => this.recordDiagnostic(level, event, message, usedModel)).build(mode, root, maxNotes, onProgress, onlyPath);
-			if (!result.ok) this.recordDiagnostic("error", "moc-build-failed", result.content, model);
+			const result = await organizer.build(mode, root, maxNotes, onProgress, onlyPath);
+			if (result.checkpoint) this.settings.mocCheckpoint = result.checkpoint;
+			else if (result.ok) delete this.settings.mocCheckpoint;
+			if (!result.ok && !result.paused) this.recordDiagnostic("error", "moc-build-failed", result.content, model);
 			await this.persistData();
 			return result;
 		} catch (error) {
 			this.recordDiagnostic("error", "moc-build-failed", error instanceof Error ? error.message : "MOC generation failed.", model);
 			await this.persistData();
 			throw error;
+		} finally {
+			if (this.activeMocOrganizer === organizer) this.activeMocOrganizer = null;
 		}
 	}
 

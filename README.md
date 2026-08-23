@@ -40,7 +40,7 @@ The production bundle consists of `main.js`, `manifest.json`, and `styles.css`. 
 
 Open **Settings → Community plugins → Obsidian Agentic Research**. Choose **Google Gemini** or **Agnes AI**, paste the corresponding API key, and set the model name. The key is stored using Obsidian SecretStorage and is not written into `data.json` or the repository.
 
-The current defaults are `gemini-3.6-flash` for Gemini and `agnes-2.0-flash` for Agnes. Model availability can vary by account and region, so the model fields are editable. The chat toolbar can refresh the selected provider’s live catalogue, and rate-limit fallback can try another available chat model from that same catalogue. A rate-limited model is placed on a one-minute cooldown and is not retried during that window; obsolete or unavailable models are quarantined longer. A user-ordered fallback list can be configured, but the plugin never silently changes providers. The plugin uses Obsidian’s `requestUrl` API for both providers, which avoids browser CORS restrictions and avoids desktop-only Node.js networking assumptions.
+The current defaults are `gemini-3.6-flash` for Gemini and `agnes-2.0-flash` for Agnes. Model availability can vary by account and region, so the model fields are editable. The chat toolbar can refresh the selected provider’s live catalogue. Gemini’s chat picker restricts candidates to current Gemini 3 text models plus text-capable Gemma as a last-resort option, so Antigravity product entries, image, live, TTS, and other specialized IDs do not become automatic chat fallbacks. Account-specific unavailable models are removed from later attempts through persisted health quarantine. A rate-limited model is placed on a one-minute cooldown and is not retried during that window; obsolete or unavailable models are quarantined longer. A user-ordered fallback list can be configured, but the plugin never silently changes providers. The plugin uses Obsidian’s `requestUrl` API for both providers, which avoids browser CORS restrictions and avoids desktop-only Node.js networking assumptions.
 
 ## AI-discovered MOCs
 
@@ -56,7 +56,9 @@ This means the agent can access all relevant files through repeated, targeted op
 
 Vault paths are normalized and must remain relative to the vault. Empty, absolute, drive-letter, duplicate-slash, dot-segment, and `..` traversal paths are rejected. Reads and writes are denied for Obsidian’s config directory and the configured plugin state folder.
 
-The default runtime bounds are eight agent steps, 160 lines per `read_file_chunk` call, 12,000 characters per tool result, 40 search hits, and 250 results for a targeted file listing. These are safety bounds, not a related-note quota: the model decides which relevant files to request one at a time until the step budget is reached. These limits are enforced by the plugin even if a provider requests larger values. When the step guard is reached, the mobile UI offers a user-triggered continuation.
+The default runtime bounds are eight agent steps, 160 lines per `read_file_chunk` call, 12,000 characters per tool result, 40 search hits, and 250 results for a targeted file listing. These are safety bounds, not a related-note quota: the model decides which relevant files to request one at a time until the step budget is reached. These limits are enforced by the plugin even if a provider requests larger values. Agent requests have a timeout guard, and the mobile UI offers a user-triggered continuation when the step guard is reached.
+
+MOC discovery has a separate default 120-second foreground budget and pauses only at a safe note boundary. A checkpoint stores processed paths and bounded category metadata locally; **Continue from checkpoint** resumes without reclassifying completed notes. This is a responsiveness guard, not a fixed note-count limit. The budget can be adjusted from settings between 30 and 900 seconds.
 
 ## Project structure
 
@@ -87,7 +89,7 @@ npm run package:release -- /path/to/obsidian-agentic-research.zip
 
 `npm run validate` runs tests, the production build, lint, dependency audit, artifact checks, and the mobile-bundle dependency scan. `npm run package:release` creates a ZIP containing only `main.js`, `manifest.json`, and `styles.css`. These commands do not require GitHub Actions, a paid GitHub runner, or a persistent server.
 
-The current repository does not require a desktop-only harness. Android and iOS validation should be done by building the bundle, copying it into a test vault, enabling the plugin, completing or skipping the first-time walkthrough, entering a provider key, refreshing the live model catalogue, exercising a research run, and running the MOC organizer. Verify that category notes contain descriptions, that a note may appear in multiple categories, that `MOCs super.md` links to useful starting sets, and that a simulated rate-limit event reports an in-provider model switch.
+The current repository does not require a desktop-only harness. Android and iOS validation should be done by building the bundle, copying it into a test vault, enabling the plugin, completing or skipping the first-time walkthrough, entering a provider key, refreshing the live model catalogue, exercising a research run, and running the MOC organizer. Verify that category notes contain descriptions, that a note may appear in multiple categories, that `MOCs super.md` links to useful starting sets, that an obsolete selected model is replaced by a current chat model, that **Pause after current note** creates a checkpoint, and that **Continue from checkpoint** avoids reprocessing completed notes.
 
 ## Privacy and safety
 

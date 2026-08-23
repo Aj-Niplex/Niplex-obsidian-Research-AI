@@ -1,5 +1,6 @@
+import { ProviderRequestError } from "./provider-errors";
 import { completeWithModelFallback } from "./model-fallback";
-import type { ModelCooldown, ProviderAdapter, ProviderRequest, ToolResult } from "./types";
+import type { ModelCooldown, MocCheckpoint, MocCheckpointCategory, ProviderAdapter, ProviderRequest, ToolResult } from "./types";
 import type { NoteForCategorization, VaultContext } from "./vault-context";
 
 export interface MocCategory {
@@ -10,7 +11,7 @@ export interface MocCategory {
 }
 
 export interface MocProgress {
-	phase: "reading" | "classifying" | "writing" | "complete" | "error";
+	phase: "reading" | "classifying" | "writing" | "complete" | "paused" | "error";
 	current: number;
 	total: number;
 	path?: string;
@@ -22,6 +23,8 @@ export interface MocBuildResult extends ToolResult {
 	categories: number;
 	rootPath: string;
 	superPath: string;
+	paused?: boolean;
+	checkpoint?: MocCheckpoint;
 }
 
 interface ModelCategory {
@@ -57,6 +60,15 @@ function categoryKey(name: string): string {
 
 function trimText(value: unknown, fallback: string, maxChars: number): string {
 	return asText(value, fallback).slice(0, maxChars);
+}
+
+function checkpointCategories(categories: Map<string, MocCategory>): MocCheckpointCategory[] {
+	return [...categories.values()].map((category) => ({
+		name: category.name,
+		description: category.description,
+		reason: category.reason,
+		notes: [...category.notes].slice(0, 5000),
+	}));
 }
 
 function noteLink(path: string): string {
@@ -111,7 +123,16 @@ export class MocOrganizer {
 		private readonly autoFallback = true,
 		private readonly cooldowns: Record<string, ModelCooldown> = {},
 		private readonly onDiagnostic?: (level: "info" | "warn" | "error", event: string, message: string, model?: string) => void,
+		private readonly resumeCheckpoint?: MocCheckpoint,
+		private readonly timeBudgetSeconds = 120,
+		private readonly onCheckpoint?: (checkpoint: MocCheckpoint) => Promise<void> | void,
 	) {}
+
+	private stopRequested = false;
+
+	requestStop(): void {
+		this.stopRequested = true;
+	}
 
 	async build(
 		mode: "create" | "adjust",
@@ -123,24 +144,37 @@ export class MocOrganizer {
 		const root = normalizeRoot(rootInput);
 		const superPath = `${root}/MOCs super.md`;
 		const excludedPrefix = `${root}/`;
-			const notes = await this.vault.getNotesForCategorization(mode === "adjust" ? 1 : Math.max(Math.floor(maxNotes), 0), onlyPath, excludedPrefix);
+		const checkpoint = this.resumeCheckpoint?.mode === mode && this.resumeCheckpoint.rootPath === root && this.resumeCheckpoint.onlyPath === onlyPath ? this.resumeCheckpoint : undefined;
+		const notes = await this.vault.getNotesForCategorization(mode === "adjust" ? 1 : Math.max(Math.floor(maxNotes), 0), onlyPath, excludedPrefix);
 		if (notes.length === 0) {
 			return { ok: false, isError: true, content: "No eligible Markdown notes were found for this incremental run.", notesProcessed: 0, categories: 0, rootPath: root, superPath };
 		}
 
 		const categories = new Map<string, MocCategory>();
-		if (mode === "adjust") await this.loadExistingCategories(root, categories);
-		const errors: string[] = [];
-		for (let index = 0; index < notes.length; index += 1) {
-			const note = notes[index];
-			if (!note) continue;
-			onProgress({ phase: "reading", current: index + 1, total: notes.length, path: note.path, message: `Reading bounded metadata and excerpt from ${note.path}` });
-			onProgress({ phase: "classifying", current: index + 1, total: notes.length, path: note.path, message: `Asking ${this.model} to find categories for this note` });
+		if (checkpoint) {
+			for (const category of checkpoint.categories) categories.set(categoryKey(category.name), { ...category, notes: new Set(category.notes) });
+		} else if (mode === "adjust") {
+			await this.loadExistingCategories(root, categories);
+		}
+		const processedPaths = new Set(checkpoint?.processedPaths ?? []);
+		const errors = [...(checkpoint?.errors ?? [])];
+		const startedAt = Date.now();
+		const makeCheckpoint = (): MocCheckpoint => ({ mode, rootPath: root, onlyPath, processedPaths: [...processedPaths].slice(0, 5000), categories: checkpointCategories(categories).slice(0, 30), errors: errors.slice(-200).map((error) => error.slice(0, 240)), updatedAt: Date.now() });
+		const pausedResult = (message: string): MocBuildResult => {
+			const saved = makeCheckpoint();
+			onProgress({ phase: "paused", current: processedPaths.size, total: notes.length, message });
+			return { ok: false, isError: false, paused: true, checkpoint: saved, content: message, notesProcessed: processedPaths.size, categories: categories.size, rootPath: root, superPath };
+		};
+
+		for (const note of notes) {
+			if (!note || processedPaths.has(note.path)) continue;
+			if (this.stopRequested || Date.now() - startedAt >= this.timeBudgetSeconds * 1000) return pausedResult(`Paused after ${processedPaths.size} of ${notes.length} note(s). Continue to resume without repeating completed notes.`);
+			const current = processedPaths.size + 1;
+			onProgress({ phase: "reading", current, total: notes.length, path: note.path, message: `Reading bounded metadata and excerpt from ${note.path}` });
+			onProgress({ phase: "classifying", current, total: notes.length, path: note.path, message: `Asking ${this.model} to find categories for this note` });
 			try {
-				if (mode === "adjust") {
-					for (const category of categories.values()) category.notes.delete(note.path);
-				}
-					const result = await this.classify(note, onProgress, index + 1, notes.length);
+				if (mode === "adjust") for (const category of categories.values()) category.notes.delete(note.path);
+				const result = await this.classify(note, onProgress, current, notes.length);
 				const parsed = parseCategories(result);
 				const usable = parsed.length ? parsed : [{ name: "Uncategorized", description: "Notes that need more signals before a more specific category can be chosen.", reason: "The model did not return a usable category." }];
 				for (const item of usable) {
@@ -148,43 +182,43 @@ export class MocOrganizer {
 					if (categoryKey(name) === categoryKey("MOCs super")) continue;
 					const key = categoryKey(name);
 					if (!categories.has(key) && categories.size >= MAX_CATEGORIES) continue;
-					const current = categories.get(key) ?? {
-						name,
-						description: trimText(item.description, "A model-discovered group of related notes.", MAX_DESCRIPTION_CHARS),
-						reason: trimText(item.reason, "Shared properties or bounded-content signals.", MAX_DESCRIPTION_CHARS),
-						notes: new Set<string>(),
-					};
-					if (!current.description && item.description) current.description = trimText(item.description, current.description, MAX_DESCRIPTION_CHARS);
-					if (!current.reason && item.reason) current.reason = trimText(item.reason, current.reason, MAX_DESCRIPTION_CHARS);
-					current.notes.add(note.path);
-					categories.set(key, current);
+					const currentCategory = categories.get(key) ?? { name, description: trimText(item.description, "A model-discovered group of related notes.", MAX_DESCRIPTION_CHARS), reason: trimText(item.reason, "Shared properties or bounded-content signals.", MAX_DESCRIPTION_CHARS), notes: new Set<string>() };
+					if (!currentCategory.description && item.description) currentCategory.description = trimText(item.description, currentCategory.description, MAX_DESCRIPTION_CHARS);
+					if (!currentCategory.reason && item.reason) currentCategory.reason = trimText(item.reason, currentCategory.reason, MAX_DESCRIPTION_CHARS);
+					currentCategory.notes.add(note.path);
+					categories.set(key, currentCategory);
 				}
+				processedPaths.add(note.path);
 			} catch (error) {
-				errors.push(`${note.path}: ${error instanceof Error ? error.message : "classification failed"}`);
-				onProgress({ phase: "error", current: index + 1, total: notes.length, path: note.path, message: `Could not classify ${note.path}; it will be retried later.` });
+				const errorText = error instanceof Error ? error.message : "classification failed";
+				errors.push(`${note.path}: ${errorText}`);
+				if (error instanceof ProviderRequestError && (error.code === "all_models_cooling_down" || error.code === "request_timeout")) return pausedResult(`Paused because provider models are unavailable or slow. ${processedPaths.size} note(s) are checkpointed; continue after the model cooldown or catalogue refresh.`);
+				processedPaths.add(note.path);
+				onProgress({ phase: "error", current, total: notes.length, path: note.path, message: `Could not classify ${note.path}; it will be retried later.` });
 			}
+			await this.onCheckpoint?.(makeCheckpoint());
 		}
 
-		if (categories.size === 0) {
-			return { ok: false, isError: true, content: errors.join("\n") || "The model returned no usable categories.", notesProcessed: notes.length, categories: 0, rootPath: root, superPath };
-		}
+		if (this.stopRequested || Date.now() - startedAt >= this.timeBudgetSeconds * 1000) return pausedResult(`Paused after classifying ${processedPaths.size} note(s). Continue to finish the MOC without repeating completed notes.`);
+		if (categories.size === 0) return { ok: false, isError: true, content: errors.join("\n") || "The model returned no usable categories.", notesProcessed: processedPaths.size, categories: 0, rootPath: root, superPath };
 
 		const ordered = [...categories.values()].sort((a, b) => a.name.localeCompare(b.name));
-		onProgress({ phase: "classifying", current: notes.length, total: notes.length, message: `Asking ${this.model} to recommend useful category combinations` });
-			const recommendations = await this.recommendCombinations(ordered, onProgress, notes.length);
+		onProgress({ phase: "classifying", current: processedPaths.size, total: notes.length, message: `Asking ${this.model} to recommend useful category combinations` });
+		const recommendations = await this.recommendCombinations(ordered, onProgress, processedPaths.size);
 		onProgress({ phase: "writing", current: 0, total: ordered.length + 1, message: "Writing category MOCs and the super-MOC" });
 		for (let index = 0; index < ordered.length; index += 1) {
+			if (this.stopRequested) return pausedResult("Paused before writing completed MOC output. Continue to finish the saved checkpoint.");
 			const category = ordered[index];
 			if (!category) continue;
 			const result = await this.vault.writeGeneratedNote(categoryFilePath(root, category.name), this.renderCategory(category), mode === "adjust");
-			if (!result.ok) return { ok: false, isError: true, content: result.content, notesProcessed: notes.length, categories: ordered.length, rootPath: root, superPath };
+			if (!result.ok) return { ok: false, isError: true, content: result.content, notesProcessed: processedPaths.size, categories: ordered.length, rootPath: root, superPath };
 			onProgress({ phase: "writing", current: index + 1, total: ordered.length + 1, path: categoryFilePath(root, category.name), message: `Updated ${category.name}` });
 		}
 		const superResult = await this.vault.writeGeneratedNote(superPath, this.renderSuper(root, ordered, recommendations), mode === "adjust");
-		if (!superResult.ok) return { ok: false, isError: true, content: superResult.content, notesProcessed: notes.length, categories: ordered.length, rootPath: root, superPath };
+		if (!superResult.ok) return { ok: false, isError: true, content: superResult.content, notesProcessed: processedPaths.size, categories: ordered.length, rootPath: root, superPath };
 		onProgress({ phase: "complete", current: ordered.length + 1, total: ordered.length + 1, path: superPath, message: `Finished ${ordered.length} category MOCs and one super-MOC` });
 		const suffix = errors.length ? ` ${errors.length} note(s) could not be classified and can be retried with Adjust recent note.` : "";
-		return { ok: true, content: `Processed ${notes.length} note(s) incrementally into ${ordered.length} model-discovered categories. ${superPath} is the recommended starting point.${suffix}`, notesProcessed: notes.length, categories: ordered.length, rootPath: root, superPath };
+		return { ok: true, content: `Processed ${processedPaths.size} note(s) incrementally into ${ordered.length} model-discovered categories. ${superPath} is the recommended starting point.${suffix}`, notesProcessed: processedPaths.size, categories: ordered.length, rootPath: root, superPath };
 	}
 
 	private async classify(note: NoteForCategorization, onProgress: (progress: MocProgress) => void, current: number, total: number): Promise<string> {
@@ -256,17 +290,18 @@ export class MocOrganizer {
 		private async complete(request: ProviderRequest, onProgress: (progress: MocProgress) => void, current: number, total: number) {
 			const result = await completeWithModelFallback(this.provider, request, {
 				enabled: this.autoFallback,
-				configuredFallbackModels: this.fallbackModels,
+					configuredFallbackModels: this.fallbackModels,
+					requestTimeoutMs: Math.min(20_000, Math.max(5_000, this.timeBudgetSeconds * 1000)),
 					cooldowns: this.cooldowns,
 					onEvent: (event) => {
 						if (event.type === "checking") onProgress({ phase: "classifying", current, total, message: `${event.from} is unavailable or cooling down. Checking the ${this.provider.id} model catalogue…` });
 						else if (event.type === "cooling_down") {
 							const seconds = event.until ? Math.max(1, Math.ceil((event.until - Date.now()) / 1000)) : 60;
-							const message = event.reason === "rate-limit" ? `Rate-limited: ${event.from} will be skipped for about ${seconds}s.` : `Model ${event.from} is unavailable and will be skipped for about ${seconds}s.`;
+							const message = event.reason === "rate-limit" ? `Rate-limited: ${event.from} will be skipped for about ${seconds}s.` : event.reason === "timeout" ? `Timed out: ${event.from} will be skipped for about ${seconds}s.` : `Model ${event.from} is unavailable and will be skipped for about ${seconds}s.`;
 							onProgress({ phase: "classifying", current, total, message });
 							this.onDiagnostic?.("warn", "moc-model-cooldown", message, event.from);
 						} else if (event.to) {
-							const message = `Trying ${event.to} after ${event.from} was unavailable.`;
+							const message = `Trying ${event.to} after ${event.from} was unavailable or slow.`;
 							onProgress({ phase: "classifying", current, total, message });
 							this.onDiagnostic?.("info", "moc-model-switch", message, event.to);
 						}

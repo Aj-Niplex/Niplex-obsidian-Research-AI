@@ -50,7 +50,7 @@ export interface ProviderModel {
 	label: string;
 }
 
-export type ModelCooldownReason = "rate-limit" | "unavailable";
+export type ModelCooldownReason = "rate-limit" | "unavailable" | "timeout";
 
 export interface ModelCooldown {
 	until: number;
@@ -94,6 +94,23 @@ export interface ToolResult {
 	isError?: boolean;
 }
 
+export interface MocCheckpointCategory {
+	name: string;
+	description: string;
+	reason: string;
+	notes: string[];
+}
+
+export interface MocCheckpoint {
+	mode: "create" | "adjust";
+	rootPath: string;
+	onlyPath: string;
+	processedPaths: string[];
+	categories: MocCheckpointCategory[];
+	errors: string[];
+	updatedAt: number;
+}
+
 export interface AgentSettings {
 	provider: ProviderId;
 	geminiModel: string;
@@ -105,6 +122,8 @@ export interface AgentSettings {
 	maxIterations: number;
 	maxToolResultChars: number;
 	maxReadLines: number;
+	mocTimeBudgetSeconds: number;
+	mocCheckpoint?: MocCheckpoint;
 	stateFolder: string;
 	activeMocPath: string;
 	onboardingVersion: number;
@@ -121,6 +140,7 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	maxIterations: 8,
 	maxToolResultChars: 12000,
 	maxReadLines: 160,
+	mocTimeBudgetSeconds: 120,
 	stateFolder: ".obsidian-agentic-research",
 	activeMocPath: "",
 	onboardingVersion: 0,

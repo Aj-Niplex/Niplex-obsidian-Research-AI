@@ -122,7 +122,7 @@ export class AgentView extends ItemView {
 	private async refreshModelOptions(forceRefresh = false): Promise<void> {
 		if (!this.modelSelect) return;
 		const provider = this.host.settings.provider;
-		const selected = provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
+		let selected = provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
 		let models: ProviderModel[] = [];
 		try {
 			models = await this.host.getModelCatalogue(provider, forceRefresh);
@@ -130,8 +130,19 @@ export class AgentView extends ItemView {
 			models = [];
 		}
 		const selectedIsLive = models.some((model) => model.id === selected);
-		const selectedLabel = !models.length ? `${selected} · catalogue unavailable` : selectedIsLive ? `${selected} · selected` : `${selected} · unavailable — choose another`;
-		const entries = [{ id: selected, label: selectedLabel }, ...models.filter((model) => model.id !== selected)];
+		if (models.length && !selectedIsLive) {
+			const replacement = models.find((model) => /(?:flash|mini|instant)/i.test(model.id)) ?? models[0];
+			if (replacement) {
+				const previous = selected;
+				selected = replacement.id;
+				if (provider === "gemini") this.host.settings.geminiModel = selected;
+				else this.host.settings.agnesModel = selected;
+				this.currentChat.model = selected;
+				void this.host.saveSettings();
+				new Notice(`Removed unavailable model ${previous}; using ${selected}.`);
+			}
+		}
+		const entries = models.length ? models : [{ id: selected, label: `${selected} · catalogue unavailable` }];
 		this.modelSelect.empty();
 		for (const model of entries) this.modelSelect.add(new Option(model.label, model.id));
 		this.modelSelect.value = selected;
@@ -267,6 +278,10 @@ export class AgentView extends ItemView {
 
 	private ensureStep(step: number): HTMLDetailsElement {
 		if (this.activeStep?.dataset.step === String(step)) return this.activeStep;
+		if (this.activeStep) {
+			this.activeStep.open = false;
+			this.activeStep.toggleClass("is-running", false);
+		}
 		const details = this.transcriptEl.createEl("details", { cls: "oar-step is-running" });
 		details.dataset.step = String(step);
 		const summary = details.createEl("summary", { cls: "oar-step-summary", text: `Step ${step}` });

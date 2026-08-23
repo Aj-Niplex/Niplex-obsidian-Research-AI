@@ -128,6 +128,17 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 				.addButton((button) => button.setButtonText("Open logs").onClick(() => this.host.openDiagnostics()));
 
 			new Setting(containerEl)
+				.setName("Moc foreground time budget (seconds)")
+				.setDesc("Pause a long moc build after this many seconds at a safe note boundary. This is a mobile responsiveness guard, not a note-count limit.")
+				.addText((text) => text.setValue(String(this.host.settings.mocTimeBudgetSeconds)).onChange(async (value) => {
+					const parsed = Number.parseInt(value, 10);
+					if (Number.isFinite(parsed)) {
+						this.host.settings.mocTimeBudgetSeconds = Math.min(Math.max(parsed, 30), 900);
+						await this.host.saveSettings();
+					}
+				}));
+
+			new Setting(containerEl)
 				.setName("Maximum agent steps")
 			.setDesc("Hard cap on tool-loop iterations per prompt.")
 			.addText((text) =>

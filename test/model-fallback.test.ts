@@ -2,20 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ProviderRequestError } from "../src/core/provider-errors";
 import { completeWithModelFallback } from "../src/core/model-fallback";
-import type { ProviderAdapter, ProviderRequest, ProviderResponse } from "../src/core/types";
+import type { ProviderAdapter, ProviderModel, ProviderRequest, ProviderResponse } from "../src/core/types";
 
 const request: ProviderRequest = { model: "primary", messages: [], tools: [] };
 
 class FakeProvider implements ProviderAdapter {
 	readonly id = "gemini" as const;
 	readonly attempted: string[] = [];
-	constructor(private readonly responses: Record<string, Error | ProviderResponse>) {}
+	constructor(private readonly responses: Record<string, Error | ProviderResponse>, private readonly models: ProviderModel[] = [
+		{ id: "primary", label: "Primary" },
+		{ id: "preferred-backup", label: "Preferred backup" },
+		{ id: "catalogue-backup", label: "Catalogue backup" },
+	]) {}
 	async listModels() {
-		return [
-			{ id: "primary", label: "Primary" },
-			{ id: "preferred-backup", label: "Preferred backup" },
-			{ id: "catalogue-backup", label: "Catalogue backup" },
-		];
+		return this.models;
 	}
 	async complete(next: ProviderRequest): Promise<ProviderResponse> {
 		this.attempted.push(next.model);
@@ -69,6 +69,21 @@ test("quarantines a stale model without treating it as a rate limit", async () =
 	const result = await completeWithModelFallback(provider, request, { enabled: true, configuredFallbackModels: ["preferred-backup"], cooldowns });
 	assert.equal(result.model, "preferred-backup");
 	assert.equal(cooldowns["gemini/primary"]?.reason, "unavailable");
+});
+
+test("prefers fast modern catalogue models over Gemma or older pro models", async () => {
+	const provider = new FakeProvider(
+		{ primary: new ProviderRequestError("quota exceeded", 429), "gemini-3.7-flash": { text: "fast recovery", toolCalls: [] }, "gemini-2.5-pro": { text: "old recovery", toolCalls: [] }, "gemma-4-26b-a4b-it": { text: "slow recovery", toolCalls: [] } },
+		[
+			{ id: "primary", label: "Primary" },
+			{ id: "gemma-4-26b-a4b-it", label: "Gemma" },
+			{ id: "gemini-2.5-pro", label: "Older Pro" },
+			{ id: "gemini-3.7-flash", label: "Fast Flash" },
+		],
+	);
+	const result = await completeWithModelFallback(provider, request, { enabled: true, configuredFallbackModels: [] });
+	assert.equal(result.model, "gemini-3.7-flash");
+	assert.deepEqual(provider.attempted, ["primary", "gemini-3.7-flash"]);
 });
 
 test("uses the live catalogue when no configured fallback order is provided", async () => {

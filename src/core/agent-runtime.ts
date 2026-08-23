@@ -116,11 +116,11 @@ export class AgentRuntime {
 								if (event.type === "checking") emit({ type: "status", phase: "thinking", step: iteration, message: `${event.from} is unavailable or cooling down. Checking another available ${this.settings.provider} model…` });
 								else if (event.type === "cooling_down") {
 									const seconds = event.until ? Math.max(1, Math.ceil((event.until - Date.now()) / 1000)) : 60;
-									const message = event.reason === "rate-limit" ? `Rate-limited: ${event.from} will be skipped for about ${seconds}s.` : `Model ${event.from} is unavailable and will be skipped for about ${seconds}s.`;
+									const message = event.reason === "rate-limit" ? `Rate-limited: ${event.from} will be skipped for about ${seconds}s.` : event.reason === "timeout" ? `Timed out: ${event.from} will be skipped for about ${seconds}s.` : `Model ${event.from} is unavailable and will be skipped for about ${seconds}s.`;
 									emit({ type: "status", phase: "thinking", step: iteration, message });
 									this.onDiagnostic?.("warn", "model-cooldown", message, event.from);
 								} else if (event.to) {
-									const message = `Trying ${event.to} after ${event.from} was unavailable.`;
+									const message = `Trying ${event.to} after ${event.from} was unavailable or slow.`;
 									emit({ type: "status", phase: "thinking", step: iteration, message });
 									this.onDiagnostic?.("info", "model-switch", message, event.to);
 								}

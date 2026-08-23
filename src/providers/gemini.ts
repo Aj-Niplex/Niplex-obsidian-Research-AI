@@ -63,7 +63,7 @@ export class GeminiProvider implements ProviderAdapter {
 		const payload = response.json as { models?: Array<{ name?: string; displayName?: string; supportedGenerationMethods?: string[] }> };
 		if (response.status >= 400) throw new ProviderRequestError(errorMessage(payload, response.status), response.status, "gemini_http_error");
 		return (payload.models ?? [])
-			.filter((model) => model.name?.startsWith("models/") && model.supportedGenerationMethods?.includes("generateContent") && !/(?:image|tts|audio|embedding)/i.test(model.name ?? ""))
+				.filter((model) => model.name?.startsWith("models/") && model.supportedGenerationMethods?.includes("generateContent") && !/(?:image|tts|audio|embedding|live|video)/i.test(model.name ?? "") && /^(?:models\/gemini-3(?:\.\d+)?-(?:flash(?:-lite)?|pro)(?:-preview)?|models\/gemma-\d+(?:\.\d+)?-[a-z0-9-]+)$/i.test(model.name ?? ""))
 			.map((model) => ({ id: model.name?.replace(/^models\//, "") ?? "", label: model.displayName?.trim() || model.name?.replace(/^models\//, "") || "Gemini model" }))
 			.filter((model) => Boolean(model.id));
 	}

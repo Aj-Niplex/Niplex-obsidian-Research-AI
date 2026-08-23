@@ -1,5 +1,6 @@
 import { App, Modal, Notice, Setting } from "obsidian";
 import type { MocBuildResult, MocProgress } from "../core/moc-organizer";
+import type { MocCheckpoint } from "../core/types";
 
 export interface MocHost {
 	settings: { activeMocPath: string };
@@ -11,6 +12,8 @@ export interface MocHost {
 		onlyPath?: string,
 	): Promise<MocBuildResult>;
 	setActiveMoc(path: string): Promise<void>;
+	getMocCheckpoint(): MocCheckpoint | undefined;
+	stopMocBuild(): void;
 }
 
 function rootFromActivePath(path: string): string {
@@ -28,7 +31,9 @@ export class MocModal extends Modal {
 	private actionButton!: HTMLButtonElement;
 	private createModeButton!: HTMLButtonElement;
 	private adjustModeButton!: HTMLButtonElement;
+	private stopButton!: HTMLButtonElement;
 	private busy = false;
+	private paused = false;
 
 	constructor(app: App, host: MocHost, onDone: () => void) {
 		super(app);
@@ -92,12 +97,21 @@ export class MocModal extends Modal {
 		this.progressEl = body.createEl("progress", { cls: "oar-moc-progress" });
 		this.progressEl.max = 1;
 		this.progressEl.value = 0;
-		this.statusEl = body.createDiv({ cls: "oar-moc-status oar-muted", text: this.mode === "create" ? "Ready to discover categories." : "Ready to adjust the latest edited note." });
+		const checkpoint = this.host.getMocCheckpoint();
+		const canResume = checkpoint?.mode === this.mode && checkpoint.rootPath === (this.rootEl?.value.trim() || "MOCs").replace(/^\/+|\/+$/g, "");
+		this.statusEl = body.createDiv({ cls: "oar-moc-status oar-muted", text: canResume ? `Checkpoint ready: ${checkpoint?.processedPaths.length ?? 0} note(s) already classified. Continue when ready.` : this.mode === "create" ? "Ready to discover categories." : "Ready to adjust the latest edited note." });
 		this.actionButton = body.createEl("button", {
-			text: this.mode === "create" ? "Discover all eligible categories" : "Adjust with latest note",
+			text: canResume ? "Continue from checkpoint" : this.mode === "create" ? "Discover all eligible categories" : "Adjust with latest note",
 			cls: "mod-cta",
 		});
 		this.actionButton.addEventListener("click", () => void this.run());
+		this.stopButton = body.createEl("button", { text: "Pause after current note", cls: "oar-moc-stop-button is-hidden" });
+		this.stopButton.addEventListener("click", () => {
+			if (!this.busy) return;
+			this.stopButton.disabled = true;
+			this.stopButton.textContent = "Pausing after current note…";
+			this.host.stopMocBuild();
+		});
 	}
 
 	private async run(): Promise<void> {
@@ -105,7 +119,11 @@ export class MocModal extends Modal {
 		const root = this.rootEl?.value.trim() || "MOCs";
 		const limit = this.mode === "adjust" ? 1 : 0;
 		this.busy = true;
+		this.paused = false;
 		this.actionButton.addClass("is-loading");
+		this.stopButton.removeClass("is-hidden");
+		this.stopButton.disabled = false;
+		this.stopButton.textContent = "Pause after current note";
 		this.actionButton.textContent = this.mode === "create" ? "Discovering categories…" : "Adjusting latest note…";
 		this.actionButton.disabled = true;
 		this.createModeButton.disabled = true;
@@ -116,18 +134,22 @@ export class MocModal extends Modal {
 			const result = await this.host.buildMocs(this.mode, root, limit, (progress) => this.showProgress(progress));
 			this.showResult(result);
 			if (result.ok) {
-				await this.host.setActiveMoc(result.superPath);
-				this.onDone();
-				this.close();
-			}
+					await this.host.setActiveMoc(result.superPath);
+					this.onDone();
+					this.close();
+				} else if (result.paused) {
+					this.paused = true;
+				}
 		} catch (error) {
 			this.statusEl.textContent = error instanceof Error ? error.message : "MOC generation failed.";
 			new Notice(this.statusEl.textContent.slice(0, 180), 7000);
 		} finally {
 			this.busy = false;
 			this.actionButton.removeClass("is-loading");
-			this.actionButton.textContent = this.mode === "create" ? "Discover categories incrementally" : "Adjust with latest note";
+			this.actionButton.textContent = this.paused ? "Continue from checkpoint" : this.mode === "create" ? "Discover categories incrementally" : "Adjust with latest note";
 			this.actionButton.disabled = false;
+			this.stopButton.addClass("is-hidden");
+			this.stopButton.disabled = false;
 			this.createModeButton.disabled = false;
 			this.adjustModeButton.disabled = false;
 		}
@@ -136,17 +158,19 @@ export class MocModal extends Modal {
 	private showProgress(progress: MocProgress): void {
 		this.progressEl.max = Math.max(progress.total, 1);
 		this.progressEl.value = Math.min(progress.current, progress.total);
-		this.statusEl.textContent = progress.path ? `${progress.message} · ${progress.path}` : progress.message;
+		const text = progress.path ? `${progress.message} · ${progress.path}` : progress.message;
+		this.statusEl.textContent = text.length > 420 ? `${text.slice(0, 420)}…` : text;
 	}
 
 	private showResult(result: MocBuildResult): void {
 		const summary = result.content.length > 900 ? `${result.content.slice(0, 900)}…` : result.content;
 		this.statusEl.textContent = summary;
-		const notice = result.ok ? `MOC complete: ${result.notesProcessed} note(s), ${result.categories} categor${result.categories === 1 ? "y" : "ies"}.` : `MOC failed: ${result.content.slice(0, 180)}`;
+		const notice = result.ok ? `MOC complete: ${result.notesProcessed} note(s), ${result.categories} categor${result.categories === 1 ? "y" : "ies"}.` : result.paused ? `MOC paused after ${result.notesProcessed} note(s). Continue from checkpoint.` : `MOC stopped: ${result.content.slice(0, 180)}`;
 		new Notice(notice, 7000);
 	}
 
 	onClose(): void {
+		if (this.busy) this.host.stopMocBuild();
 		this.contentEl.empty();
 	}
 }

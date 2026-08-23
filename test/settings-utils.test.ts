@@ -14,6 +14,25 @@ test("migrates legacy settings without losing safe defaults", () => {
 	assert.equal(settings.onboardingVersion, 0);
 });
 
+test("normalizes MOC time budget and checkpoint state", () => {
+	const settings = normalizeAgentSettings({
+		mocTimeBudgetSeconds: 9999,
+		mocCheckpoint: {
+			mode: "create",
+			rootPath: " MOCs ",
+			onlyPath: "",
+			processedPaths: ["A.md", 4],
+			categories: [{ name: "Goals", description: "x", reason: "y", notes: ["A.md", 4] }],
+			errors: ["x"],
+			updatedAt: Date.now(),
+		},
+	});
+	assert.equal(settings.mocTimeBudgetSeconds, 900);
+	assert.equal(settings.mocCheckpoint?.rootPath, "MOCs");
+	assert.deepEqual(settings.mocCheckpoint?.processedPaths, ["A.md"]);
+	assert.deepEqual(settings.mocCheckpoint?.categories[0]?.notes, ["A.md"]);
+});
+
 test("normalizes fallback order and clamps onboarding state", () => {
 	const settings = normalizeAgentSettings({ geminiFallbackModels: [" gemini-a ", "gemini-a", 5, ""], onboardingVersion: 99, maxReadLines: 1 });
 	assert.deepEqual(settings.geminiFallbackModels, ["gemini-a"]);

@@ -7,6 +7,7 @@ export interface ModelFallbackOptions {
 	cooldowns?: Record<string, ModelCooldown>;
 	cooldownMs?: number;
 	unavailableCooldownMs?: number;
+	requestTimeoutMs?: number;
 	onEvent?: (event: {
 		type: "checking" | "switching" | "cooling_down";
 		from: string;
@@ -49,9 +50,26 @@ function rememberCooldown(
 	cooldownMs: number,
 	unavailableCooldownMs: number,
 ): number {
-	const until = Date.now() + (reason === "rate-limit" ? cooldownMs : unavailableCooldownMs);
+	const until = Date.now() + (reason === "rate-limit" || reason === "timeout" ? cooldownMs : unavailableCooldownMs);
 	if (cooldowns) cooldowns[cooldownKey(provider, model)] = { until, reason };
 	return until;
+}
+
+function modelScore(provider: ProviderAdapter, model: string): number {
+	const id = model.toLowerCase();
+	let score = 100;
+	if (provider.id === "gemini") {
+		if (id.includes("flash")) score -= 35;
+		if (id.includes("flash-lite")) score -= 8;
+		if (id.includes("gemma")) score += 45;
+		if (id.includes("pro")) score += 25;
+		const version = id.match(/(?:gemini|gemma)[-_](\d+)(?:\.(\d+))?/);
+		if (version) score -= Number(version[1] ?? 0) * 8 + Number(version[2] ?? 0);
+	} else {
+		if (id.includes("flash") || id.includes("mini") || id.includes("instant")) score -= 30;
+		if (id.includes("pro")) score += 15;
+	}
+	return score;
 }
 
 function nextCandidate(
@@ -62,9 +80,28 @@ function nextCandidate(
 	cooldowns: Record<string, ModelCooldown> | undefined,
 ): string | null {
 	const available = new Set(catalogue.map((model) => model.id.trim()).filter(Boolean));
-	const preferred = available.size > 0 ? configured.filter((model) => available.has(model)) : configured;
-	const catalogueModels = catalogue.map((model) => model.id.trim()).filter(Boolean);
-	return [...preferred, ...catalogueModels].find((model) => !attempted.has(model) && !activeCooldown(provider, model, cooldowns)) ?? null;
+	const allCandidates = uniqueModels([...configured, ...catalogue.map((model) => model.id.trim())]).filter((model) => available.size === 0 || available.has(model));
+	const candidates = allCandidates.filter((model) => !attempted.has(model) && !activeCooldown(provider, model, cooldowns));
+	const ranked = candidates.sort((a, b) => modelScore(provider, a) - modelScore(provider, b));
+	const fastChatModels = ranked.filter((model) => /(?:flash|mini|instant)/i.test(model));
+	return (fastChatModels.length ? fastChatModels : ranked)[0] ?? null;
+}
+
+async function completeWithTimeout(provider: ProviderAdapter, request: ProviderRequest, timeoutMs: number): Promise<ProviderResponse> {
+	let timeoutHandle: number | ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_, reject) => {
+		timeoutHandle = typeof window === "undefined"
+			? globalThis.setTimeout(() => reject(new ProviderRequestError(`Model request timed out after ${Math.round(timeoutMs / 1000)} seconds.`, 408, "request_timeout")), timeoutMs)
+			: window.setTimeout(() => reject(new ProviderRequestError(`Model request timed out after ${Math.round(timeoutMs / 1000)} seconds.`, 408, "request_timeout")), timeoutMs);
+	});
+	try {
+		return await Promise.race([provider.complete(request), timeout]);
+	} finally {
+		if (timeoutHandle !== undefined) {
+			if (typeof timeoutHandle === "number") window.clearTimeout(timeoutHandle);
+			else globalThis.clearTimeout(timeoutHandle);
+		}
+	}
 }
 
 async function loadCatalogue(provider: ProviderAdapter): Promise<ProviderModel[]> {
@@ -83,6 +120,7 @@ export async function completeWithModelFallback(
 	const cooldowns = options.cooldowns;
 	const cooldownMs = Math.max(1_000, options.cooldownMs ?? DEFAULT_COOLDOWN_MS);
 	const unavailableCooldownMs = Math.max(cooldownMs, options.unavailableCooldownMs ?? DEFAULT_UNAVAILABLE_COOLDOWN_MS);
+	const requestTimeoutMs = Math.max(5_000, options.requestTimeoutMs ?? 45_000);
 	let activeModel = request.model;
 	const attempted = new Set<string>();
 	let catalogueChecked = false;
@@ -98,11 +136,12 @@ export async function completeWithModelFallback(
 		} else {
 			attempted.add(activeModel);
 			try {
-				return { response: await provider.complete({ ...request, model: activeModel }), model: activeModel };
-			} catch (error) {
-				if (!options.enabled || (!isRateLimitError(error) && !isModelUnavailableError(error))) throw error;
+				return { response: await completeWithTimeout(provider, { ...request, model: activeModel }, requestTimeoutMs), model: activeModel };
+				} catch (error) {
+					const isTimeout = error instanceof ProviderRequestError && error.code === "request_timeout";
+					if (!options.enabled || (!isRateLimitError(error) && !isModelUnavailableError(error) && !isTimeout)) throw error;
 				lastFallbackError = error;
-				const reason: ModelCooldownReason = isRateLimitError(error) ? "rate-limit" : "unavailable";
+				const reason: ModelCooldownReason = isRateLimitError(error) ? "rate-limit" : error instanceof ProviderRequestError && error.code === "request_timeout" ? "timeout" : "unavailable";
 				const until = rememberCooldown(provider, activeModel, reason, cooldowns, cooldownMs, unavailableCooldownMs);
 				options.onEvent?.({ type: "cooling_down", from: activeModel, reason, until });
 			}
