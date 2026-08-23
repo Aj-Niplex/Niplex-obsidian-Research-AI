@@ -74,7 +74,7 @@ sequenceDiagram
 
 The product repository is public and provides a matching GitHub release with `main.js`, `manifest.json`, and `styles.css`. After the Community Plugins listing is published, users can install it from inside Obsidian; source installation remains available for testing. The development repository is private.
 
-1. For source testing, clone the [public product repository](https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI), install dependencies, and build locally. For normal installation, use the Community Plugins listing after publication or download the [latest release](https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI/releases).
+1. For source testing, clone the https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI, install dependencies, and build locally. For normal installation, use the Community Plugins listing after publication or download the https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI/releases.
 2. If installing from source or a release asset, create a folder named `niplex-agentic-research` inside the target vault’s `.obsidian/plugins/` directory.
 3. Copy `main.js` together with `manifest.json` and `styles.css` into that folder.
 4. Reload Obsidian, enable **Niplex Research AI**, and complete the walkthrough.
@@ -137,7 +137,7 @@ A MOC is a navigation aid, not a whole-vault export. The regular agent still cho
 
 ## Skills and helper plugin
 
-The optional [Niplex Skills Helper](https://github.com/Aj-Niplex/niplex-obsidian-helper) provides the marketplace surface. Its default public catalogue is:
+The optional Niplex Skills Helper (https://github.com/Aj-Niplex/niplex-obsidian-helper) provides the marketplace surface. Its default public catalogue is:
 
 ```text
 https://raw.githubusercontent.com/Aj-Niplex/Niplex-Obsidian-skills/main/catalogue.json
@@ -182,7 +182,7 @@ src/
 
 ## Design references
 
-The README structure follows conventions common in maintained Obsidian plugins: a short product statement, feature table, installation and development instructions, privacy notes, troubleshooting, architecture, and licensing. The project specifically reviewed [Claudian](https://github.com/YishenTu/claudian), [Gemini Scribe](https://github.com/allenhutchison/obsidian-gemini), [Smart Connections](https://github.com/brianpetro/obsidian-smart-connections), and [Dataview](https://github.com/blacksmithgu/obsidian-dataview) while keeping this implementation independent of their runtime code.
+The README structure follows conventions common in maintained Obsidian plugins: a short product statement, feature table, installation and development instructions, privacy notes, troubleshooting, architecture, and licensing. The project specifically reviewed Claudian (https://github.com/YishenTu/claudian), Gemini Scribe (https://github.com/allenhutchison/obsidian-gemini), Smart Connections (https://github.com/brianpetro/obsidian-smart-connections), and Dataview (https://github.com/blacksmithgu/obsidian-dataview) while keeping this implementation independent of their runtime code.
 
 ## License
 
