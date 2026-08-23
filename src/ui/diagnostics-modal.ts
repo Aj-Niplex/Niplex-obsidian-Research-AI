@@ -46,7 +46,7 @@ export class DiagnosticsModal extends Modal {
 		try {
 			const browserNavigator = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
 			const usedNativeShare = typeof browserNavigator.share === "function";
-			if (usedNativeShare) await browserNavigator.share({ title: "Obsidian Agentic Research diagnostics", text });
+			if (usedNativeShare) await browserNavigator.share({ title: "Niplex Research AI diagnostics", text });
 			else await copyText(text);
 			new Notice(usedNativeShare ? "Diagnostics shared." : "Diagnostics copied to the clipboard.");
 		} catch (error) {

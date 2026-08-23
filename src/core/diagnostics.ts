@@ -59,7 +59,7 @@ export class DiagnosticsStore {
 
 	formatForShare(): string {
 		const lines = [
-			"Obsidian Agentic Research diagnostics",
+			"Niplex Research AI diagnostics",
 			"These diagnostics intentionally exclude API keys, prompts, model responses, and vault excerpts.",
 			"",
 			...this.entries.map((entry) => {

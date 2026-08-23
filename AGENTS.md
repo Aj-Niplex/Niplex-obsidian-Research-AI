@@ -2,7 +2,7 @@
 
 ## Project scope
 
-Obsidian Agentic Research is a mobile-first TypeScript community plugin. The entry point is `src/main.ts`, and the production bundle is `main.js`. Release artifacts are `main.js`, `manifest.json`, and `styles.css`.
+Niplex Research AI is a mobile-first TypeScript community plugin. The entry point is `src/main.ts`, and the production bundle is `main.js`. Release artifacts are `main.js`, `manifest.json`, and `styles.css`.
 
 ## Commands
 

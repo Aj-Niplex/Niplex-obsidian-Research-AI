@@ -1,4 +1,4 @@
-# Obsidian Agentic Research — MVP architecture
+# Niplex Research AI — MVP architecture
 
 ## Product direction
 

@@ -1,6 +1,6 @@
-# Niplex Obsidian Research AI
+# Niplex Research AI
 
-**Niplex Obsidian Research AI** is an autonomous, mobile-first Obsidian plugin for focused research over a user’s own vault. It combines bounded vault discovery, Gemini and Agnes provider adapters, incremental AI-discovered MOCs, explicit context selection, transparent prompts, local chat history, and approval-safe edits.
+**Niplex Research AI** is an autonomous, mobile-first Obsidian plugin for focused research over a user’s own vault. It combines bounded vault discovery, Gemini and Agnes provider adapters, incremental AI-discovered MOCs, explicit context selection, transparent prompts, local chat history, and approval-safe edits.
 
 The plugin is designed for a simple rule:
 
@@ -77,7 +77,7 @@ This project is currently distributed as source rather than as a Community Plugi
 1. Clone the [public product repository](https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI), install dependencies, and build locally.
 2. Create a folder named `niplex-agentic-research` inside the target vault’s `.obsidian/plugins/` directory.
 3. Copy the locally generated `main.js` together with `manifest.json` and `styles.css` into that folder.
-4. Reload Obsidian, enable **Niplex Obsidian Research AI**, and complete the walkthrough.
+4. Reload Obsidian, enable **Niplex Research AI**, and complete the walkthrough.
 5. Enter a Gemini or Agnes API key in plugin settings. Keys remain in Obsidian SecretStorage and are never written into `NIPLEX-OBSIDIAN`.
 
 ```bash
@@ -137,7 +137,7 @@ A MOC is a navigation aid, not a whole-vault export. The regular agent still cho
 
 ## Skills and helper plugin
 
-The optional [Niplex Obsidian Helper](https://github.com/Aj-Niplex/niplex-obsidian-helper) provides the marketplace surface. Its default public catalogue is:
+The optional [Niplex Skills Helper](https://github.com/Aj-Niplex/niplex-obsidian-helper) provides the marketplace surface. Its default public catalogue is:
 
 ```text
 https://raw.githubusercontent.com/Aj-Niplex/Niplex-Obsidian-skills/main/catalogue.json
