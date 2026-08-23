@@ -34,7 +34,7 @@ npm run build
 
 Enable **Obsidian Agentic Research** under **Settings → Community plugins**. The manifest requires Obsidian 1.11.4 or newer because the plugin uses SecretStorage for API keys. For watch mode during development, run `npm run dev`, then reload the plugin from Obsidian.
 
-The production bundle consists of `main.js`, `manifest.json`, and `styles.css`. They can also be copied manually into `.obsidian/plugins/obsidian-agentic-research/`.
+The production bundle consists of `main.js`, `manifest.json`, and `styles.css`. They can also be copied manually into `.obsidian/plugins/obsidian-agentic-research/`. GitHub is only the optional private source backup; the plugin does not need GitHub at runtime or for release validation. The repository includes portable local commands that work in the Manus sandbox, a Horizon-style Node runner, or another local Node environment.
 
 ## Provider configuration
 
@@ -81,9 +81,11 @@ src/
 ## Development checks
 
 ```bash
-npm run build
-npm run lint
+npm run validate
+npm run package:release -- /path/to/obsidian-agentic-research.zip
 ```
+
+`npm run validate` runs tests, the production build, lint, dependency audit, artifact checks, and the mobile-bundle dependency scan. `npm run package:release` creates a ZIP containing only `main.js`, `manifest.json`, and `styles.css`. These commands do not require GitHub Actions, a paid GitHub runner, or a persistent server.
 
 The current repository does not require a desktop-only harness. Android and iOS validation should be done by building the bundle, copying it into a test vault, enabling the plugin, completing or skipping the first-time walkthrough, entering a provider key, refreshing the live model catalogue, exercising a research run, and running the MOC organizer. Verify that category notes contain descriptions, that a note may appear in multiple categories, that `MOCs super.md` links to useful starting sets, and that a simulated rate-limit event reports an in-provider model switch.
 

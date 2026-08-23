@@ -8,7 +8,9 @@
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "lint": "eslint .",
-    "test": "tsx --test test/**/*.test.ts"
+    "test": "tsx --test test/**/*.test.ts",
+    "validate": "node scripts/validate-release.mjs",
+    "package:release": "node scripts/package-plugin.mjs"
   },
   "keywords": ["obsidian", "agent", "research", "gemini", "agnes"],
   "license": "MIT",
