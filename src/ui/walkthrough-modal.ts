@@ -43,7 +43,7 @@ export class WalkthroughModal extends Modal {
 		}
 
 		const footer = contentEl.createDiv({ cls: "oar-walkthrough-footer" });
-		footer.createEl("small", { text: "You can reopen this guide from settings → first-time walkthrough. NIPLEX-OBSIDIAN is user-owned vault data; exclude it from the graph only if you want a cleaner visual map.", cls: "oar-muted" });
+		footer.createEl("small", { text: "You can reopen this guide from settings → first-time walkthrough. Niplex-Obsidian is user-owned vault data; exclude it from the graph only if you want a cleaner visual map.", cls: "oar-muted" });
 		const actions = footer.createDiv({ cls: "oar-walkthrough-actions" });
 		const skip = actions.createEl("button", { text: "Skip walkthrough" });
 		skip.addEventListener("click", () => void this.finish("Walkthrough skipped. You can reopen it from settings."));

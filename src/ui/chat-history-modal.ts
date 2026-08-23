@@ -19,12 +19,13 @@ export class ChatHistoryModal extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass("oar-chat-history-modal");
+		this.modalEl.parentElement?.addClass("oar-bottom-sheet-container");
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("oar-modal", "oar-chat-history");
 		contentEl.createDiv({ cls: "oar-action-sheet-handle", attr: { "aria-hidden": "true" } });
 		contentEl.createEl("h2", { text: "Chat history" });
-		contentEl.createEl("p", { text: "Every completed turn is saved locally under NIPLEX-OBSIDIAN/Chats. Search, reopen, or move an old chat to Obsidian trash.", cls: "oar-muted" });
+		contentEl.createEl("p", { text: "Every completed turn is saved locally under NIPLEX-Obsidian/chats. Search, reopen, or move an old chat to Obsidian trash.", cls: "oar-muted" });
 		this.searchEl = contentEl.createEl("input", { type: "search", placeholder: "Search saved chats…", cls: "oar-history-search", attr: { "aria-label": "Search saved chats" } });
 		this.searchEl.addEventListener("input", () => this.renderList());
 		this.listEl = contentEl.createDiv({ cls: "oar-history-list" });

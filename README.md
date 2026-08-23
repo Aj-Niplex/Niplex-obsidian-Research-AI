@@ -35,19 +35,19 @@ The `+` control first asks whether the user wants **Files** or **Folder**. Selec
 
 ```mermaid
 flowchart LR
-    UI[Mobile Obsidian view\nchat + composer + icon controls] --> MODE[Plan / Chat / Create & edit]
-    UI --> ATTACH[Explicit files or folder\nmax 8 Markdown paths]
-    UI --> HISTORY[Local chat history\nNIPLEX-OBSIDIAN/Chats]
-    MODE --> RUNTIME[Bounded agent runtime]
+    UI("Mobile view: chat, composer, icon controls") --> MODE("Plan / Chat / Create and edit")
+    UI --> ATTACH("Explicit files or folder: max 8 Markdown paths")
+    UI --> HISTORY("Local chat history: NIPLEX-OBSIDIAN/Chats")
+    MODE --> RUNTIME("Bounded agent runtime")
     ATTACH --> RUNTIME
-    RUNTIME --> PROMPT[Protected policy\n+ capped additive prompt]
-    RUNTIME --> MOC[Super-MOC snapshot\nwhen available]
-    RUNTIME --> TOOLS[Safe vault tools\nmetadata / search / line window]
-    RUNTIME --> FALLBACK[Timeout + demand + quota fallback]
-    FALLBACK --> GEMINI[Gemini]
-    FALLBACK --> AGNES[Agnes]
-    TOOLS --> VAULT[(User vault)]
-    RUNTIME --> APPROVAL[Write approval boundary]
+    RUNTIME --> PROMPT("Protected policy plus capped additive prompt")
+    RUNTIME --> MOC("Super-MOC snapshot when available")
+    RUNTIME --> TOOLS("Safe vault tools: metadata, search, line window")
+    RUNTIME --> FALLBACK("Timeout, demand, and quota fallback")
+    FALLBACK --> GEMINI("Gemini")
+    FALLBACK --> AGNES("Agnes")
+    TOOLS --> VAULT(("User vault"))
+    RUNTIME --> APPROVAL("Write approval boundary")
     APPROVAL --> VAULT
 ```
 
@@ -72,11 +72,11 @@ sequenceDiagram
 
 ## Installation from GitHub source
 
-This project is currently distributed as source rather than as a Community Plugins listing or a prebuilt GitHub release asset. The product repository is public; the development repository is private.
+The product repository is public and provides a matching GitHub release with `main.js`, `manifest.json`, and `styles.css`. After the Community Plugins listing is published, users can install it from inside Obsidian; source installation remains available for testing. The development repository is private.
 
-1. Clone the [public product repository](https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI), install dependencies, and build locally.
-2. Create a folder named `niplex-agentic-research` inside the target vault’s `.obsidian/plugins/` directory.
-3. Copy the locally generated `main.js` together with `manifest.json` and `styles.css` into that folder.
+1. For source testing, clone the [public product repository](https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI), install dependencies, and build locally. For normal installation, use the Community Plugins listing after publication or download the [latest release](https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI/releases).
+2. If installing from source or a release asset, create a folder named `niplex-agentic-research` inside the target vault’s `.obsidian/plugins/` directory.
+3. Copy `main.js` together with `manifest.json` and `styles.css` into that folder.
 4. Reload Obsidian, enable **Niplex Research AI**, and complete the walkthrough.
 5. Enter a Gemini or Agnes API key in plugin settings. Keys remain in Obsidian SecretStorage and are never written into `NIPLEX-OBSIDIAN`.
 

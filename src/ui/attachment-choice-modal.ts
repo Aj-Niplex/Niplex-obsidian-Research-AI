@@ -7,6 +7,7 @@ export class AttachmentChoiceModal extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass("oar-attachment-choice-modal");
+		this.modalEl.parentElement?.addClass("oar-bottom-sheet-container");
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("oar-modal", "oar-attachment-choice");

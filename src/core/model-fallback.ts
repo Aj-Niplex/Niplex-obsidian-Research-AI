@@ -88,19 +88,14 @@ function nextCandidate(
 }
 
 async function completeWithTimeout(provider: ProviderAdapter, request: ProviderRequest, timeoutMs: number): Promise<ProviderResponse> {
-	let timeoutHandle: number | ReturnType<typeof setTimeout> | undefined;
+	let timeoutHandle: number | undefined;
 	const timeout = new Promise<never>((_, reject) => {
-		timeoutHandle = typeof window === "undefined"
-			? globalThis.setTimeout(() => reject(new ProviderRequestError(`Model request timed out after ${Math.round(timeoutMs / 1000)} seconds.`, 408, "request_timeout")), timeoutMs)
-			: window.setTimeout(() => reject(new ProviderRequestError(`Model request timed out after ${Math.round(timeoutMs / 1000)} seconds.`, 408, "request_timeout")), timeoutMs);
+		timeoutHandle = window.setTimeout(() => reject(new ProviderRequestError(`Model request timed out after ${Math.round(timeoutMs / 1000)} seconds.`, 408, "request_timeout")), timeoutMs);
 	});
 	try {
 		return await Promise.race([provider.complete(request), timeout]);
 	} finally {
-		if (timeoutHandle !== undefined) {
-			if (typeof timeoutHandle === "number") window.clearTimeout(timeoutHandle);
-			else globalThis.clearTimeout(timeoutHandle);
-		}
+		if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle);
 	}
 }
 

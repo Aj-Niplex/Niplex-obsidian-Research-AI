@@ -1,9 +1,9 @@
 {
 	"id": "niplex-agentic-research",
 	"name": "Niplex Research AI",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"minAppVersion": "1.11.4",
-	"description": "Autonomous, mobile-first Obsidian research AI with bounded vault context, transparent prompts, and approved edits.",
+	"description": "Autonomous, mobile-first research AI with bounded vault context, transparent prompts, and approved edits.",
 	"author": "Aj-Niplex",
 	"authorUrl": "https://github.com/Aj-Niplex",
 	"isDesktopOnly": false

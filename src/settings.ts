@@ -131,8 +131,8 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 				.addButton((button) => button.setButtonText("Configure approvals").onClick(() => new ApprovalPolicyModal(this.app, this.host).open()));
 
 			new Setting(containerEl)
-				.setName("MOC folder")
-				.setDesc("Generated category maps are saved under this visible vault folder. The default is NIPLEX-OBSIDIAN/MOCs.")
+				.setName("Moc folder")
+				.setDesc("Generated category maps are saved under this visible vault folder. The default is NIPLEX-Obsidian/mocs.")
 				.addText((text) => text.setValue(this.host.settings.mocFolder).onChange(async (value) => {
 					const safe = sanitizeVaultPath(value);
 					if (safe) {

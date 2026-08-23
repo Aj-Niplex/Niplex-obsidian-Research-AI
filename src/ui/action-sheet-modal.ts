@@ -46,6 +46,7 @@ export class ActionSheetModal extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass("oar-action-sheet-modal");
+		this.modalEl.parentElement?.addClass("oar-bottom-sheet-container");
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("oar-action-sheet");

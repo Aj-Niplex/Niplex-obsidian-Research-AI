@@ -621,8 +621,10 @@ export class AgentView extends ItemView {
 		this.lastErrorEl?.remove();
 		this.lastErrorEl = null;
 		const messages = this.currentChat.messages;
-		if (messages.at(-1)?.role === "assistant" && messages.at(-1)?.content === this.lastRunErrorText) messages.pop();
-		if (messages.at(-1)?.role === "user" && messages.at(-1)?.content === this.lastPrompt) messages.pop();
+		const lastMessage = messages[messages.length - 1];
+		if (lastMessage?.role === "assistant" && lastMessage.content === this.lastRunErrorText) messages.pop();
+		const previousMessage = messages[messages.length - 1];
+		if (previousMessage?.role === "user" && previousMessage.content === this.lastPrompt) messages.pop();
 		this.renderCurrentChat();
 		this.renderAttachmentChips();
 		this.inputEl.value = this.lastPrompt;

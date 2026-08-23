@@ -90,7 +90,7 @@ export class MocModal extends Modal {
 
 		const explanation = body.createDiv({ cls: "oar-moc-explanation" });
 		explanation.createEl("strong", { text: "Output structure" });
-			explanation.createEl("p", { text: "MOCs/ → model-selected category notes → MOCs super.md. Each category explains what belongs inside it, and the super-map recommends category combinations for better answers." });
+			explanation.createEl("p", { text: "Mocs/ → model-selected category notes → mocs super.md. Each category explains what belongs inside it, and the super-map recommends category combinations for better answers." });
 		const tree = body.createEl("pre", { cls: "oar-moc-tree" });
 		tree.textContent = `${this.rootEl?.value.trim() || this.host.settings.mocFolder}/\n├── <model-selected category>.md\n├── <another category>.md\n└── MOCs super.md`;
 

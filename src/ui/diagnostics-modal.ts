@@ -5,14 +5,6 @@ export interface DiagnosticsHost {
 	clearDiagnostics(): void;
 }
 
-async function copyText(text: string): Promise<void> {
-	if (navigator.clipboard?.writeText) {
-		await navigator.clipboard.writeText(text);
-		return;
-	}
-	throw new Error("Clipboard API unavailable");
-}
-
 export class DiagnosticsModal extends Modal {
 	constructor(app: App, private readonly host: DiagnosticsHost) {
 		super(app);
@@ -32,7 +24,7 @@ export class DiagnosticsModal extends Modal {
 		preview.rows = 12;
 
 		const actions = contentEl.createDiv({ cls: "oar-diagnostics-actions" });
-		const share = actions.createEl("button", { text: "Share / copy logs", cls: "mod-cta" });
+		const share = actions.createEl("button", { text: "Share diagnostics", cls: "mod-cta" });
 		share.addEventListener("click", () => void this.share(preview.value));
 		const clear = actions.createEl("button", { text: "Clear logs" });
 		clear.addEventListener("click", () => {
@@ -45,10 +37,12 @@ export class DiagnosticsModal extends Modal {
 	private async share(text: string): Promise<void> {
 		try {
 			const browserNavigator = navigator as Navigator & { share?: (data: ShareData) => Promise<void> };
-			const usedNativeShare = typeof browserNavigator.share === "function";
-			if (usedNativeShare) await browserNavigator.share({ title: "Niplex Research AI diagnostics", text });
-			else await copyText(text);
-			new Notice(usedNativeShare ? "Diagnostics shared." : "Diagnostics copied to the clipboard.");
+			if (typeof browserNavigator.share !== "function") {
+				new Notice("Native sharing is unavailable. Select and copy the redacted text manually.");
+				return;
+			}
+			await browserNavigator.share({ title: "Niplex Research AI diagnostics", text });
+			new Notice("Diagnostics shared.");
 		} catch (error) {
 			if (error instanceof Error && error.name === "AbortError") return;
 			new Notice("Could not share diagnostics. You can select and copy the text manually.");
