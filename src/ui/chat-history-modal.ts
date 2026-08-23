@@ -1,5 +1,6 @@
 import { App, Modal, Notice } from "obsidian";
 import type { SavedChat } from "../core/types";
+import { searchableChatText } from "../core/chat-history";
 
 export interface ChatHistoryHost {
 	getChats(): SavedChat[];
@@ -37,8 +38,8 @@ export class ChatHistoryModal extends Modal {
 		this.listEl.empty();
 		const query = this.searchEl?.value.trim().toLowerCase() ?? "";
 		const chats = this.host.getChats().filter((chat) => {
-			const text = `${chat.title}\n${chat.messages.map((message) => message.content).join("\n")}`.toLowerCase();
-			return !query || text.includes(query);
+			const subject = chat.subject ?? chat.title;
+			return !query || searchableChatText(subject, chat.messages).includes(query);
 		});
 		if (!chats.length) {
 			this.listEl.createDiv({ text: query ? "No saved chats match that search." : "No saved chats yet.", cls: "oar-muted" });
@@ -47,13 +48,13 @@ export class ChatHistoryModal extends Modal {
 		for (const chat of chats) {
 			const row = this.listEl.createDiv({ cls: "oar-history-row" });
 			const open = row.createEl("button", { cls: "oar-history-open" });
-			open.createEl("strong", { text: chat.title || "Untitled chat" });
+			open.createEl("strong", { text: (chat.subject ?? chat.title) || "Untitled chat" });
 			open.createEl("small", { text: `${new Date(chat.updatedAt).toLocaleString()} · ${chat.messages.filter((message) => message.role === "user").length} question(s)` });
 			open.addEventListener("click", () => {
 				this.host.onSelectChat(chat.id);
 				this.close();
 			});
-			const deleteButton = row.createEl("button", { text: "Delete", cls: "oar-history-delete", attr: { "aria-label": `Delete ${chat.title}` } });
+			const deleteButton = row.createEl("button", { text: "Delete", cls: "oar-history-delete", attr: { "aria-label": `Delete ${chat.subject ?? chat.title}` } });
 			deleteButton.addEventListener("click", () => void this.deleteChat(chat.id));
 		}
 	}

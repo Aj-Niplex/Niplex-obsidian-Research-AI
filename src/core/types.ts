@@ -16,6 +16,7 @@ export interface ChatMessage {
 export interface SavedChat {
 	id: string;
 	title: string;
+	subject?: string;
 	createdAt: number;
 	updatedAt: number;
 	provider: ProviderId;

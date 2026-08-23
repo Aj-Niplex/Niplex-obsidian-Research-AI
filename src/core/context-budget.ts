@@ -1,6 +1,7 @@
 export const CONTEXT_BUDGETS = {
 	maxUserPromptChars: 6000,
 	maxSkillGuidanceChars: 6000,
+	maxMemoryChars: 6000,
 	maxSuperMocChars: 6000,
 	maxAttachmentChars: 8000,
 	maxInjectedContextChars: 20000,

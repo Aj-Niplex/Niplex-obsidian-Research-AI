@@ -1,5 +1,6 @@
 import { App, Modal, Notice } from "obsidian";
 import type { AgentSettings, ProviderId, ProviderModel, QuickActionId, SavedChat } from "../core/types";
+import { searchableChatText } from "../core/chat-history";
 
 export interface ActionSheetHost {
 	settings: AgentSettings;
@@ -21,6 +22,7 @@ export interface ActionSheetHost {
 	onQuickActionsChange(actions: QuickActionId[]): Promise<void>;
 	onOpenLogs(): void;
 	onOpenPrompts(): void;
+	onOpenMemory(): Promise<void>;
 }
 
 const QUICK_ACTIONS: Array<{ id: QuickActionId; label: string; icon: string }> = [
@@ -93,6 +95,7 @@ export class ActionSheetModal extends Modal {
 
 		const more = this.addDisclosure(contentEl, "More tools", "View transparent prompts or open redacted diagnostics.");
 		this.addActionCard(more, "View prompts", "Read the protected policy and edit only the additive prompt.", () => this.host.onOpenPrompts());
+		this.addActionCard(more, "Open user memory", "Review the bounded personalization note before or after an approved update.", () => void this.host.onOpenMemory());
 		this.addActionCard(more, "Open logs", "Review local redacted diagnostics.", () => this.host.onOpenLogs());
 	}
 
@@ -154,9 +157,9 @@ export class ActionSheetModal extends Modal {
 		const query = this.chatSearchEl?.value.trim().toLowerCase() ?? "";
 		for (const chat of this.host.getChats()) {
 			if (chat.id === this.host.currentChat.id) continue;
-			const haystack = `${chat.title}\n${chat.messages.map((message) => message.content).join("\n")}`.toLowerCase();
-			if (query && !haystack.includes(query)) continue;
-			this.chatSelectEl.add(new Option(chat.title, chat.id));
+			const subject = chat.subject ?? chat.title;
+			if (query && !searchableChatText(subject, chat.messages).includes(query)) continue;
+			this.chatSelectEl.add(new Option(subject, chat.id));
 		}
 		this.chatSelectEl.value = this.host.currentChat.id;
 		if (this.deleteButton) this.deleteButton.disabled = !this.host.currentChatPersisted;

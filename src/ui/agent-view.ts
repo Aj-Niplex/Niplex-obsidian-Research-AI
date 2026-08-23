@@ -2,6 +2,8 @@ import { ItemView, MarkdownRenderer, Notice, setIcon, WorkspaceLeaf } from "obsi
 import type { AgentEvent, AgentRunResult } from "../core/agent-runtime";
 import type { AgentSettings, ChatMessage, ProviderId, ProviderModel, QuickActionId, SavedChat } from "../core/types";
 import { CONTEXT_BUDGETS } from "../core/context-budget";
+import { compactChatMessages } from "../core/chat-history";
+import { deriveChatSubject } from "../core/chat-subject";
 import { MocModal, type MocHost } from "./moc-modal";
 import { FilePickerModal, type FilePickerHost } from "./file-picker-modal";
 import { ActionSheetModal, type ActionSheetHost } from "./action-sheet-modal";
@@ -9,7 +11,8 @@ import { AttachmentChoiceModal } from "./attachment-choice-modal";
 import type { AttachmentMode } from "./file-picker-modal";
 import { ChatHistoryModal } from "./chat-history-modal";
 
-export const AGENT_VIEW_TYPE = "obsidian-agentic-research-view";
+export const AGENT_VIEW_TYPE = "niplex-agentic-research-view";
+export const LEGACY_AGENT_VIEW_TYPE = "obsidian-agentic-research-view";
 
 export interface AgentViewHost extends MocHost, FilePickerHost {
 	settings: AgentSettings;
@@ -20,6 +23,7 @@ export interface AgentViewHost extends MocHost, FilePickerHost {
 	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<ProviderModel[]>;
 	openDiagnostics(): void;
 	openPrompts(): void;
+	openMemoryFile(): Promise<void>;
 	saveChat(chat: SavedChat): Promise<void>;
 	deleteChat(id: string): Promise<void>;
 }
@@ -29,6 +33,7 @@ function newChat(): SavedChat {
 	return {
 		id: `chat-${now}`,
 		title: "New research chat",
+		subject: "New research chat",
 		createdAt: now,
 		updatedAt: now,
 		provider: "gemini",
@@ -353,6 +358,7 @@ export class AgentView extends ItemView {
 			},
 			onOpenLogs: () => this.host.openDiagnostics(),
 			onOpenPrompts: () => this.host.openPrompts(),
+			onOpenMemory: () => this.host.openMemoryFile(),
 		};
 		new ActionSheetModal(this.app, sheetHost).open();
 	}
@@ -386,7 +392,8 @@ export class AgentView extends ItemView {
 		this.transcriptEl.empty();
 		this.activeStep = null;
 		this.busyEl = null;
-		this.appendSystem(this.currentChat.messages.length ? `Loaded “${this.currentChat.title}”.` : "Ready. Start with a focused research question.");
+		const subject = this.currentChat.subject ?? this.currentChat.title;
+		this.appendSystem(this.currentChat.messages.length ? `Loaded “${subject}”.` : "Ready. Start with a focused research question.");
 		for (const message of this.currentChat.messages) {
 			if (message.role === "user") this.appendUser(message.content);
 			else if (message.role === "assistant" && message.content && !message.toolCalls?.length) this.appendAssistant(message.content);
@@ -586,12 +593,15 @@ export class AgentView extends ItemView {
 		this.lastErrorEl = null;
 		this.inputEl.value = "";
 		this.inputEl.dispatchEvent(new Event("input"));
-		const history = this.currentChat.messages.slice();
+		const history = compactChatMessages(this.currentChat.messages);
 		const attachments = [...(this.currentChat.attachments ?? [])];
+		const isFirstUserMessage = !this.currentChat.messages.some((message) => message.role === "user");
 		this.appendUser(prompt);
 		this.currentChat.messages.push({ role: "user", content: prompt });
-		if (this.currentChat.messages.filter((message) => message.role === "user").length === 1) {
-			this.currentChat.title = prompt.length > 42 ? `${prompt.slice(0, 42)}…` : prompt;
+		if (isFirstUserMessage) {
+			const subject = deriveChatSubject(prompt);
+			this.currentChat.title = subject;
+			this.currentChat.subject = subject;
 		}
 		this.currentChatPersisted = true;
 		this.showImmediateBusy();
@@ -602,7 +612,7 @@ export class AgentView extends ItemView {
 			this.currentChat.model = result.model;
 			this.currentChat.attachments = attachments;
 			this.continueButton.disabled = !result.stopped;
-			this.currentChat.messages = result.messages.filter((message) => message.role !== "system");
+			this.currentChat.messages = compactChatMessages(result.messages.filter((message) => message.role !== "system"));
 			if (this.lastRunErrorText && !this.currentChat.messages.some((message) => message.role === "assistant" && message.content === result.text)) {
 				this.currentChat.messages.push({ role: "assistant", content: result.text });
 			}
@@ -611,7 +621,7 @@ export class AgentView extends ItemView {
 			this.continueButton.disabled = true;
 			const message = error instanceof Error ? error.message : "Agent run failed.";
 			this.appendEvent({ type: "error", phase: "error", message });
-			this.currentChat.messages.push({ role: "assistant", content: message });
+			this.currentChat.messages = compactChatMessages([...this.currentChat.messages, { role: "assistant", content: message }]);
 			this.currentChatPersisted = true;
 			try {
 				await this.host.saveChat(this.currentChat);
