@@ -1197,3 +1197,308 @@
 	font-size: var(--font-ui-smaller);
 	font-weight: var(--font-weight-medium, 500);
 }
+
+.oar-error {
+	padding: var(--size-4-3);
+	border: 1px solid var(--text-error);
+	background: var(--background-modifier-error);
+	line-height: 1.5;
+	word-break: break-word;
+}
+
+.oar-error button {
+	width: 100%;
+	min-height: 2.75rem;
+	margin-top: var(--size-4-3);
+}
+
+.oar-busy {
+	word-break: break-word;
+}
+
+/* Final mobile workspace layout: one calm surface, one clear action row. */
+.oar-header-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.oar-header-row h2 {
+	margin: 0;
+	min-width: 0;
+	flex: 1;
+}
+
+.oar-actions-button {
+	flex: 0 0 auto;
+	min-height: 2.5rem;
+	padding-inline: var(--size-4-3);
+}
+
+.oar-quick-bar {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	width: 100%;
+	min-width: 0;
+	margin-top: var(--size-4-2);
+	padding: var(--size-4-1);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.oar-quick-buttons {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--size-4-1);
+}
+
+.oar-quick-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.75rem;
+	min-width: 2.75rem;
+	height: 2.75rem;
+	min-height: 2.75rem;
+	padding: 0;
+}
+
+.oar-quick-button svg {
+	width: 1.25rem;
+	height: 1.25rem;
+}
+
+.oar-quick-controls {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	flex: 1 1 auto;
+	gap: var(--size-4-1);
+	min-width: 0;
+}
+
+.oar-model-picker,
+.oar-mode-picker {
+	width: 100%;
+	min-width: 0;
+	min-height: 2.75rem;
+	padding-inline: var(--size-4-1);
+	text-overflow: ellipsis;
+}
+
+.oar-composer-entry {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--size-4-2);
+	align-items: stretch;
+}
+
+.oar-composer-entry textarea {
+	min-height: 7rem;
+	margin: 0;
+}
+
+.oar-composer-side {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+
+.oar-composer-side button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 3rem !important;
+	min-width: 3rem;
+	height: 3rem;
+	min-height: 3rem;
+	padding: 0;
+}
+
+.oar-composer-side button svg {
+	width: 1.25rem;
+	height: 1.25rem;
+}
+
+.oar-run-button {
+	border-radius: 50%;
+}
+
+.oar-composer-actions {
+	margin-top: var(--size-4-2);
+}
+
+.oar-composer-actions .oar-continue-button {
+	width: 100%;
+}
+
+.oar-message.oar-error {
+	font-size: var(--font-ui-small);
+}
+
+.oar-message.oar-error strong {
+	font-size: var(--font-ui-medium);
+}
+
+@media (max-width: 600px) {
+	.oar-view {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 0;
+	}
+
+	.oar-header {
+		flex: 0 0 auto;
+	}
+
+	.oar-quick-bar {
+		align-items: stretch;
+	}
+
+	.oar-quick-buttons {
+		max-width: 48%;
+	}
+
+	.oar-quick-controls {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+
+	.oar-model-picker,
+	.oar-mode-picker {
+		font-size: var(--font-ui-smaller);
+	}
+
+	.oar-composer-entry textarea {
+		min-height: 6.5rem;
+	}
+}
+
+.oar-attachment-choice-modal,
+.oar-chat-history-modal {
+	width: min(100%, 36rem);
+	max-width: 100%;
+	margin: 0;
+	border-radius: var(--radius-l, 1rem) var(--radius-l, 1rem) 0 0;
+	overflow: hidden;
+}
+
+.modal-container:has(.oar-attachment-choice-modal),
+.modal-container:has(.oar-chat-history-modal) {
+	align-items: flex-end;
+	justify-content: center;
+	padding: 0;
+}
+
+.oar-attachment-choice,
+.oar-chat-history {
+	max-height: min(78vh, 48rem);
+	padding: var(--size-4-3) var(--size-4-3) max(var(--size-4-4), env(safe-area-inset-bottom));
+	overflow-y: auto;
+}
+
+.oar-attachment-choice-actions {
+	display: grid;
+	gap: var(--size-4-2);
+	margin-top: var(--size-4-4);
+}
+
+.oar-file-picker-folder {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--size-4-1) var(--size-4-2);
+	align-items: center;
+	padding: var(--size-4-2);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.oar-file-picker-folder-name {
+	overflow-wrap: anywhere;
+}
+
+.oar-file-picker-folder .oar-muted {
+	grid-column: 1;
+}
+
+.oar-file-picker-folder button {
+	grid-column: 2;
+	grid-row: 1 / span 2;
+	min-height: 2.5rem;
+}
+
+.oar-file-picker-count {
+	margin: var(--size-4-2) 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.oar-action-chooser-note {
+	margin-bottom: var(--size-4-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.oar-action-toggle {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	min-height: 2.75rem;
+	padding: var(--size-4-1) 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+}
+
+.oar-history-list {
+	display: grid;
+	gap: var(--size-4-2);
+	max-height: 58vh;
+	overflow-y: auto;
+}
+
+.oar-history-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--size-4-2);
+	align-items: stretch;
+}
+
+.oar-history-open {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--size-4-1);
+	min-width: 0;
+	padding: var(--size-4-2);
+	text-align: left;
+}
+
+.oar-history-open strong,
+.oar-history-open small {
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
+.oar-history-open small {
+	color: var(--text-muted);
+}
+
+.oar-history-delete {
+	align-self: center;
+	min-height: 2.5rem;
+}
+
+@media (max-width: 600px) {
+	.oar-attachment-choice,
+	.oar-chat-history {
+		width: 100%;
+	}
+
+	.oar-file-picker-folder {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.oar-history-list {
+		max-height: 54vh;
+	}
+}

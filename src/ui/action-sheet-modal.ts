@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import type { AgentSettings, ProviderId, ProviderModel, SavedChat } from "../core/types";
+import type { AgentSettings, ProviderId, ProviderModel, QuickActionId, SavedChat } from "../core/types";
 
 export interface ActionSheetHost {
 	settings: AgentSettings;
@@ -12,14 +12,25 @@ export interface ActionSheetHost {
 	onSaveChat(): Promise<void>;
 	onDeleteChat(): Promise<void>;
 	onSelectChat(id: string): void;
+	onOpenChatHistory(): void;
 	onAttachFiles(): void;
 	onOpenMoc(): void;
 	onContinue(): void;
 	onProviderChange(provider: ProviderId): Promise<void>;
 	onModelChange(model: string): Promise<void>;
+	onQuickActionsChange(actions: QuickActionId[]): Promise<void>;
 	onOpenLogs(): void;
 	onOpenPrompts(): void;
 }
+
+const QUICK_ACTIONS: Array<{ id: QuickActionId; label: string; icon: string }> = [
+	{ id: "history", label: "Chat history", icon: "history" },
+	{ id: "attach", label: "Add files or folder", icon: "paperclip" },
+	{ id: "moc", label: "MOC builder", icon: "map" },
+	{ id: "continue", label: "Continue research", icon: "rotate-ccw" },
+	{ id: "prompts", label: "View prompts", icon: "scroll-text" },
+	{ id: "logs", label: "Open logs", icon: "activity" },
+];
 
 export class ActionSheetModal extends Modal {
 	private readonly host: ActionSheetHost;
@@ -39,14 +50,17 @@ export class ActionSheetModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass("oar-action-sheet");
 		contentEl.createDiv({ cls: "oar-action-sheet-handle", attr: { "aria-hidden": "true" } });
-		contentEl.createEl("h2", { text: "Research actions" });
-		contentEl.createEl("p", { text: "Start with context. Open the less-used controls only when needed.", cls: "oar-muted" });
+		contentEl.createEl("h2", { text: "Actions" });
+		contentEl.createEl("p", { text: "Keep the workspace focused. Open tools only when you need them.", cls: "oar-muted" });
 
 		const primary = contentEl.createDiv({ cls: "oar-action-section oar-action-primary" });
 		primary.createEl("h3", { text: "Add to this research" });
-		this.addActionCard(primary, "Attach files", "Select up to eight Markdown files. Only bounded windows are read.", () => this.host.onAttachFiles());
+		this.addActionCard(primary, "Add context", "Choose specific files or a folder; the next run remains bounded.", () => this.host.onAttachFiles());
 		this.addActionCard(primary, "Open MOC builder", "Create or adjust the map used to navigate your vault.", () => this.host.onOpenMoc());
 		this.addActionCard(primary, "Continue research", "Resume from the last bounded run when it paused.", () => this.host.onContinue());
+
+		const quick = this.addDisclosure(contentEl, "Quick-action bar", "Choose up to three icons to keep beside the chat input.");
+		this.renderQuickActionChooser(quick);
 
 		const chat = this.addDisclosure(contentEl, "Chat history", "Search, switch, save, or delete local chats.");
 		this.chatSearchEl = chat.createEl("input", { type: "search", placeholder: "Search saved chats…", cls: "oar-action-search", attr: { "aria-label": "Search saved chats" } });
@@ -60,6 +74,7 @@ export class ActionSheetModal extends Modal {
 			}
 		});
 		const chatActions = chat.createDiv({ cls: "oar-action-button-grid" });
+		this.addButton(chatActions, "Open history", () => this.host.onOpenChatHistory());
 		this.addButton(chatActions, "New chat", () => this.host.onNewChat());
 		this.addButton(chatActions, "Save current", () => this.host.onSaveChat());
 		this.deleteButton = this.addButton(chatActions, "Delete current", () => this.host.onDeleteChat());
@@ -86,6 +101,30 @@ export class ActionSheetModal extends Modal {
 		summary.createEl("strong", { text: title });
 		summary.createEl("small", { text: description });
 		return details.createDiv({ cls: "oar-action-disclosure-body" });
+	}
+
+	private renderQuickActionChooser(root: HTMLElement): void {
+		const note = root.createDiv({ cls: "oar-action-chooser-note", text: `${this.host.settings.quickActions.length} / 3 selected` });
+		for (const action of QUICK_ACTIONS) {
+			const label = root.createEl("label", { cls: "oar-action-toggle" });
+			const checkbox = label.createEl("input", { type: "checkbox" });
+			checkbox.checked = this.host.settings.quickActions.includes(action.id);
+			checkbox.addEventListener("change", () => {
+				const next = this.host.settings.quickActions.filter((id) => id !== action.id);
+				if (checkbox.checked) {
+					if (next.length >= 3) {
+						checkbox.checked = false;
+						new Notice("Choose up to three quick actions.");
+						return;
+					}
+					next.push(action.id);
+				}
+				this.host.settings.quickActions = next;
+				note.textContent = `${next.length} / 3 selected`;
+				void this.host.onQuickActionsChange(next);
+			});
+			label.createSpan({ text: `${action.label} · ${action.icon}` });
+		}
 	}
 
 	private addActionCard(root: HTMLElement, label: string, description: string, callback: () => void): void {

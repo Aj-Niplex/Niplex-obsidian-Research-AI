@@ -1,9 +1,19 @@
-import { DEFAULT_SETTINGS, type AgentSettings, type ModelCooldown, type MocCheckpoint, type MocCheckpointCategory } from "./types";
+import { DEFAULT_SETTINGS, type AgentSettings, type ModelCooldown, type MocCheckpoint, type MocCheckpointCategory, type QuickActionId, type ResearchMode } from "./types";
 import { normalizeUserSystemPrompt } from "./system-prompt";
 import { normalizeApprovalPolicy } from "./approval-policy";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
+}
+
+function normalizeQuickActions(value: unknown): QuickActionId[] {
+	const allowed: QuickActionId[] = ["history", "attach", "moc", "continue", "prompts", "logs"];
+	const result = Array.isArray(value) ? value.filter((item): item is QuickActionId => typeof item === "string" && allowed.includes(item as QuickActionId)) : [];
+	return [...new Set(result)].slice(0, 3).length ? [...new Set(result)].slice(0, 3) : [...DEFAULT_SETTINGS.quickActions];
+}
+
+function normalizeResearchMode(value: unknown): ResearchMode {
+	return value === "plan" || value === "edit" ? value : "chat";
 }
 
 function normalizeModelList(value: unknown): string[] {
@@ -15,7 +25,7 @@ function normalizeCooldowns(value: unknown): Record<string, ModelCooldown> {
 	const result: Record<string, ModelCooldown> = {};
 	for (const [key, raw] of Object.entries(value)) {
 		if (!isRecord(raw) || typeof raw.until !== "number" || !Number.isFinite(raw.until) || raw.until <= Date.now()) continue;
-		const reason = raw.reason === "unavailable" ? "unavailable" : raw.reason === "timeout" ? "timeout" : raw.reason === "rate-limit" ? "rate-limit" : null;
+		const reason = raw.reason === "unavailable" ? "unavailable" : raw.reason === "timeout" ? "timeout" : raw.reason === "transient" ? "transient" : raw.reason === "rate-limit" ? "rate-limit" : null;
 		if (reason) result[key.slice(0, 180)] = { until: Math.min(raw.until, Date.now() + 10 * 60 * 1000), reason };
 	}
 	return result;
@@ -64,7 +74,9 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
 			mocFolder: typeof source.mocFolder === "string" && source.mocFolder.trim() ? source.mocFolder.trim().replace(/^\/+|\/+$/g, "") : DEFAULT_SETTINGS.mocFolder,
 			activeMocPath: typeof source.activeMocPath === "string" ? source.activeMocPath.trim() : "",
 			userSystemPrompt: normalizeUserSystemPrompt(source.userSystemPrompt),
-			writeApprovalPolicy: normalizeApprovalPolicy(source.writeApprovalPolicy),
-			onboardingVersion: numberValue("onboardingVersion", DEFAULT_SETTINGS.onboardingVersion, 0, 100),
+				writeApprovalPolicy: normalizeApprovalPolicy(source.writeApprovalPolicy),
+				quickActions: normalizeQuickActions(source.quickActions),
+				researchMode: normalizeResearchMode(source.researchMode),
+				onboardingVersion: numberValue("onboardingVersion", DEFAULT_SETTINGS.onboardingVersion, 0, 100),
 	};
 }

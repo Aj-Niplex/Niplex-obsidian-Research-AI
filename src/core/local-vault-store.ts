@@ -1,6 +1,7 @@
 import { App, TFile } from "obsidian";
 import { sanitizeVaultPath } from "./path-utils";
 import type { ChatMessage, SavedChat } from "./types";
+import { CONTEXT_BUDGETS } from "./context-budget";
 
 export const NIPLEX_ROOT = "NIPLEX-OBSIDIAN";
 export const NIPLEX_CHATS = `${NIPLEX_ROOT}/Chats`;
@@ -84,7 +85,7 @@ export class LocalVaultStore {
 		const content = await this.app.vault.read(file);
 		const start = content.indexOf(PROMPT_START);
 		const end = content.indexOf(PROMPT_END, start + PROMPT_START.length);
-		return start >= 0 && end >= 0 ? content.slice(start + PROMPT_START.length, end).trim().slice(0, 12000) : null;
+		return start >= 0 && end >= 0 ? content.slice(start + PROMPT_START.length, end).trim().slice(0, CONTEXT_BUDGETS.maxUserPromptChars) : null;
 	}
 
 	async loadInstalledSkills(): Promise<InstalledSkill[]> {
@@ -106,7 +107,7 @@ export class LocalVaultStore {
 						if (typeof value === "number" && Number.isFinite(value)) patch[key] = Math.floor(value);
 					}
 				}
-				skills.push({ code, prompt: source.prompt.trim().slice(0, 8000), settingsPatch: patch });
+				skills.push({ code, prompt: source.prompt.trim().slice(0, CONTEXT_BUDGETS.maxSkillGuidanceChars), settingsPatch: patch });
 			} catch {
 				// Ignore malformed local packages; the helper validates packages before installation.
 			}
@@ -116,7 +117,7 @@ export class LocalVaultStore {
 
 	async saveUserPrompt(prompt: string): Promise<void> {
 		await this.ensureStructure();
-		const content = `# User system prompt\n\nThis file is an additive preference only. Do not put API keys, passwords, or private tokens here.\n\n${PROMPT_START}\n${prompt.trim().slice(0, 12000)}\n${PROMPT_END}\n`;
+		const content = `# User system prompt\n\nThis file is an additive preference only. Do not put API keys, passwords, or private tokens here.\n\n${PROMPT_START}\n${prompt.trim().slice(0, CONTEXT_BUDGETS.maxUserPromptChars)}\n${PROMPT_END}\n`;
 		const existing = this.app.vault.getAbstractFileByPath(PROMPT_PATH);
 		if (existing instanceof TFile) await this.app.vault.modify(existing, content);
 		else await this.app.vault.create(PROMPT_PATH, content);

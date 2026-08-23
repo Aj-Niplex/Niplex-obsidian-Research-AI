@@ -1,4 +1,4 @@
-import { isModelUnavailableError, isRateLimitError, ProviderRequestError } from "./provider-errors";
+import { isModelUnavailableError, isRateLimitError, isTransientProviderError, ProviderRequestError } from "./provider-errors";
 import type { ModelCooldown, ModelCooldownReason, ProviderAdapter, ProviderModel, ProviderRequest, ProviderResponse } from "./types";
 
 export interface ModelFallbackOptions {
@@ -50,7 +50,7 @@ function rememberCooldown(
 	cooldownMs: number,
 	unavailableCooldownMs: number,
 ): number {
-	const until = Date.now() + (reason === "rate-limit" || reason === "timeout" ? cooldownMs : unavailableCooldownMs);
+	const until = Date.now() + (reason === "rate-limit" || reason === "timeout" || reason === "transient" ? cooldownMs : unavailableCooldownMs);
 	if (cooldowns) cooldowns[cooldownKey(provider, model)] = { until, reason };
 	return until;
 }
@@ -139,9 +139,10 @@ export async function completeWithModelFallback(
 				return { response: await completeWithTimeout(provider, { ...request, model: activeModel }, requestTimeoutMs), model: activeModel };
 				} catch (error) {
 					const isTimeout = error instanceof ProviderRequestError && error.code === "request_timeout";
-					if (!options.enabled || (!isRateLimitError(error) && !isModelUnavailableError(error) && !isTimeout)) throw error;
+					const isTransient = isTransientProviderError(error);
+					if (!options.enabled || (!isRateLimitError(error) && !isModelUnavailableError(error) && !isTimeout && !isTransient)) throw error;
 				lastFallbackError = error;
-				const reason: ModelCooldownReason = isRateLimitError(error) ? "rate-limit" : error instanceof ProviderRequestError && error.code === "request_timeout" ? "timeout" : "unavailable";
+				const reason: ModelCooldownReason = isRateLimitError(error) ? "rate-limit" : isTimeout ? "timeout" : isTransient ? "transient" : "unavailable";
 				const until = rememberCooldown(provider, activeModel, reason, cooldowns, cooldownMs, unavailableCooldownMs);
 				options.onEvent?.({ type: "cooling_down", from: activeModel, reason, until });
 			}

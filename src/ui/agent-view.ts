@@ -1,10 +1,13 @@
-import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownRenderer, Notice, setIcon, WorkspaceLeaf } from "obsidian";
 import type { AgentEvent, AgentRunResult } from "../core/agent-runtime";
 import type { AgentSettings, ChatMessage, ProviderId, ProviderModel, SavedChat } from "../core/types";
 import { CONTEXT_BUDGETS } from "../core/context-budget";
 import { MocModal, type MocHost } from "./moc-modal";
 import { FilePickerModal, type FilePickerHost } from "./file-picker-modal";
 import { ActionSheetModal, type ActionSheetHost } from "./action-sheet-modal";
+import { AttachmentChoiceModal } from "./attachment-choice-modal";
+import type { AttachmentMode } from "./file-picker-modal";
+import { ChatHistoryModal } from "./chat-history-modal";
 
 export const AGENT_VIEW_TYPE = "obsidian-agentic-research-view";
 
@@ -35,11 +38,14 @@ export class AgentView extends ItemView {
 
 	private attachButton!: HTMLButtonElement;
 	private attachmentListEl!: HTMLElement;
-	private scopeEl!: HTMLElement;
+	private quickBarEl!: HTMLElement;
+	private modelSelectEl!: HTMLSelectElement;
+	private modeSelectEl!: HTMLSelectElement;
 	private busyEl: HTMLElement | null = null;
 	private activeStep: HTMLDetailsElement | null = null;
 	private currentChat: SavedChat = newChat();
 	private currentChatPersisted = false;
+	private lastPrompt = "";
 
 	constructor(leaf: WorkspaceLeaf, host: AgentViewHost) {
 		super(leaf);
@@ -59,38 +65,40 @@ export class AgentView extends ItemView {
 		root.empty();
 		root.addClass("oar-view");
 
-		const header = root.createDiv({ cls: "oar-header" });
-		header.createEl("h2", { text: "Agentic research" });
-		header.createEl("p", { text: "Search and read bounded vault context, then create an approved report.", cls: "oar-muted" });
-		this.scopeEl = header.createDiv({ cls: "oar-scope" });
-		this.refreshScopeText();
-
-			const toolbar = header.createDiv({ cls: "oar-toolbar oar-toolbar-compact" });
-			const actionsButton = toolbar.createEl("button", { text: "Research actions", cls: "oar-actions-button" });
+			const header = root.createDiv({ cls: "oar-header" });
+			const headerRow = header.createDiv({ cls: "oar-header-row" });
+			headerRow.createEl("h2", { text: "Agentic research" });
+			const actionsButton = headerRow.createEl("button", { text: "Actions", cls: "oar-actions-button", attr: { "aria-label": "Open research actions" } });
 			actionsButton.addEventListener("click", () => this.openActionSheet());
+			header.createEl("p", { text: "Search bounded context, chat, or create an approved change.", cls: "oar-muted" });
+			this.quickBarEl = header.createDiv({ cls: "oar-quick-bar" });
+			this.renderQuickBar();
 
 		this.transcriptEl = root.createDiv({ cls: "oar-transcript" });
 		this.renderCurrentChat();
 
 			const composer = root.createDiv({ cls: "oar-composer" });
 			composer.createDiv({ cls: "oar-composer-hint", text: "Ask one focused question. Add context only when you need it." });
-			this.inputEl = composer.createEl("textarea", {
-				attr: { rows: "4", maxlength: String(CONTEXT_BUDGETS.maxUserPromptChars), placeholder: "Ask the agent to research your vault…" },
-			});
+				const composerEntry = composer.createDiv({ cls: "oar-composer-entry" });
+				this.inputEl = composerEntry.createEl("textarea", {
+					attr: { rows: "4", maxlength: String(CONTEXT_BUDGETS.maxUserPromptChars), placeholder: "Ask the agent to research your vault…" },
+				});
+				const composerSide = composerEntry.createDiv({ cls: "oar-composer-side" });
+				this.attachButton = composerSide.createEl("button", { text: "+", cls: "oar-attach-button", attr: { "aria-label": "Add files or folder", title: "Add files or folder" } });
+				setIcon(this.attachButton, "paperclip");
+				this.attachButton.addEventListener("click", () => this.openAttachmentChoice());
+				this.runButton = composerSide.createEl("button", { text: "↗", cls: "mod-cta oar-run-button", attr: { "aria-label": "Run agent", title: "Run agent" } });
+				this.runButton.addEventListener("click", () => void this.submit());
 			const queryCounter = composer.createDiv({ cls: "oar-query-counter", attr: { "aria-live": "polite" } });
 			const updateQueryCounter = () => {
 				queryCounter.textContent = `${this.inputEl.value.length.toLocaleString()} / ${CONTEXT_BUDGETS.maxUserPromptChars.toLocaleString()} characters`;
 			};
 			this.inputEl.addEventListener("input", updateQueryCounter);
 			updateQueryCounter();
-			this.attachmentListEl = composer.createDiv({ cls: "oar-attachment-list" });
-			this.attachButton = composer.createEl("button", { text: "Attach files", cls: "oar-attach-button" });
-			this.attachButton.addEventListener("click", () => this.openFilePicker());
-			this.renderAttachmentChips();
+				this.attachmentListEl = composer.createDiv({ cls: "oar-attachment-list" });
+				this.renderAttachmentChips();
 				const composerActions = composer.createDiv({ cls: "oar-composer-actions" });
-			this.runButton = composerActions.createEl("button", { text: "Run agent", cls: "mod-cta" });
-			this.runButton.addEventListener("click", () => void this.submit());
-			this.continueButton = composerActions.createEl("button", { text: "Continue bounded research", cls: "oar-continue-button" });
+				this.continueButton = composerActions.createEl("button", { text: "Continue bounded research", cls: "oar-continue-button" });
 			this.continueButton.disabled = true;
 			this.continueButton.addEventListener("click", () => {
 				this.inputEl.value = "Continue the research from the existing bounded evidence. Read another relevant file only when needed, then update the answer.";
@@ -104,14 +112,67 @@ export class AgentView extends ItemView {
 		});
 	}
 
-	private refreshScopeText(): void {
-		if (!this.scopeEl) return;
-		this.scopeEl.textContent = this.host.settings.activeMocPath
-			? `Scope: ${this.host.settings.activeMocPath}`
-			: "Scope: adaptive vault search; no MOC selected";
+	private renderQuickBar(): void {
+		if (!this.quickBarEl) return;
+		this.quickBarEl.empty();
+		const quickButtons = this.quickBarEl.createDiv({ cls: "oar-quick-buttons" });
+		const labels: Record<string, { label: string; icon: string }> = {
+			attach: { label: "Add files or folder", icon: "paperclip" },
+			moc: { label: "Open MOC builder", icon: "map" },
+			continue: { label: "Continue research", icon: "rotate-ccw" },
+			history: { label: "Open saved chat history", icon: "history" },
+			prompts: { label: "View prompts", icon: "scroll-text" },
+			logs: { label: "Open logs", icon: "activity" },
+		};
+		for (const action of this.host.settings.quickActions.slice(0, 3)) {
+			const definition = labels[action];
+			if (!definition) continue;
+			const button = quickButtons.createEl("button", { cls: "oar-quick-button", attr: { "aria-label": definition.label, title: definition.label } });
+			setIcon(button, definition.icon);
+			button.addEventListener("click", () => this.runQuickAction(action));
+		}
+		const controls = this.quickBarEl.createDiv({ cls: "oar-quick-controls" });
+		this.modelSelectEl = controls.createEl("select", { cls: "oar-model-picker", attr: { "aria-label": "Change model", title: "Change model" } });
+		this.modelSelectEl.addEventListener("change", () => void this.changeModel(this.modelSelectEl.value));
+		this.modeSelectEl = controls.createEl("select", { cls: "oar-mode-picker", attr: { "aria-label": "Research mode", title: "Research mode" } });
+		this.modeSelectEl.add(new Option("Plan", "plan"));
+		this.modeSelectEl.add(new Option("Chat", "chat"));
+		this.modeSelectEl.add(new Option("Create & edit", "edit"));
+		this.modeSelectEl.value = this.host.settings.researchMode;
+		this.modeSelectEl.addEventListener("change", () => void this.changeResearchMode(this.modeSelectEl.value as AgentSettings["researchMode"]));
+		void this.refreshModelPicker();
 	}
 
+	private async runQuickAction(action: AgentSettings["quickActions"][number]): Promise<void> {
+		if (action === "history") new ChatHistoryModal(this.app, { getChats: () => this.host.getChats(), onSelectChat: (id) => this.selectChat(id), deleteChat: (id) => this.host.deleteChat(id) }).open();
+		else if (action === "attach") this.openAttachmentChoice();
+		else if (action === "moc") new MocModal(this.app, this.host, () => undefined).open();
+		else if (action === "continue") {
+			this.inputEl.value = "Continue the research from the existing bounded evidence. Read another relevant file only when needed, then update the answer.";
+			await this.submit();
+		} else if (action === "prompts") this.host.openPrompts();
+		else if (action === "logs") this.host.openDiagnostics();
+	}
 
+	private async refreshModelPicker(): Promise<void> {
+		if (!this.modelSelectEl) return;
+		const selected = this.host.settings.provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
+		let models: ProviderModel[] = [];
+		try {
+			models = await this.host.getModelCatalogue(this.host.settings.provider);
+		} catch {
+			models = [];
+		}
+		this.modelSelectEl.empty();
+		for (const model of models.length ? models : [{ id: selected, label: selected }]) this.modelSelectEl.add(new Option(model.label, model.id));
+		this.modelSelectEl.value = selected;
+	}
+
+	private async changeResearchMode(mode: AgentSettings["researchMode"]): Promise<void> {
+		this.host.settings.researchMode = mode;
+		await this.host.saveSettings();
+		new Notice(`${mode === "plan" ? "Plan" : mode === "edit" ? "Create & edit" : "Chat"} mode selected.`);
+	}
 
 	private async changeModel(model: string): Promise<void> {
 		const value = model.trim();
@@ -129,6 +190,7 @@ export class AgentView extends ItemView {
 		this.currentChat.provider = provider;
 		this.currentChat.model = provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
 		await this.host.saveSettings();
+		this.renderQuickBar();
 		new Notice(`Next agent turn will use ${this.currentChat.model}.`);
 	}
 
@@ -155,14 +217,23 @@ export class AgentView extends ItemView {
 		this.currentChat.model = this.host.settings.provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
 			this.currentChatPersisted = false;
 			this.renderCurrentChat();
-		this.renderAttachmentChips();
+			this.renderAttachmentChips();
+			this.renderQuickBar();
+		}
+
+	private openAttachmentChoice(): void {
+		new AttachmentChoiceModal(this.app, () => this.openFilePicker("files"), () => this.openFilePicker("folder")).open();
 	}
 
-	private openFilePicker(): void {
+	private openFilePicker(mode: AttachmentMode): void {
 		new FilePickerModal(this.app, this.host, this.currentChat.attachments ?? [], (paths) => {
 			this.currentChat.attachments = paths;
 			this.renderAttachmentChips();
-		}).open();
+			if (this.currentChat.messages.length) {
+				this.currentChatPersisted = true;
+				void this.host.saveChat(this.currentChat);
+			}
+		}, mode).open();
 	}
 
 	private openActionSheet(): void {
@@ -176,16 +247,22 @@ export class AgentView extends ItemView {
 			onNewChat: () => this.startNewChat(),
 			onSaveChat: () => this.saveCurrentChat(),
 			onDeleteChat: () => this.deleteCurrentChat(),
-			onSelectChat: (id) => this.selectChat(id),
-			onAttachFiles: () => this.openFilePicker(),
-			onOpenMoc: () => new MocModal(this.app, this.host, () => this.refreshScopeText()).open(),
+				onSelectChat: (id) => this.selectChat(id),
+				onOpenChatHistory: () => new ChatHistoryModal(this.app, { getChats: () => this.host.getChats(), onSelectChat: (id) => this.selectChat(id), deleteChat: (id) => this.host.deleteChat(id) }).open(),
+				onAttachFiles: () => this.openAttachmentChoice(),
+				onOpenMoc: () => new MocModal(this.app, this.host, () => undefined).open(),
 			onContinue: () => {
 				this.inputEl.value = "Continue the research from the existing bounded evidence. Read another relevant file only when needed, then update the answer.";
 				void this.submit();
 			},
 			onProviderChange: (provider) => this.changeProvider(provider),
-			onModelChange: (model) => this.changeModel(model),
-			onOpenLogs: () => this.host.openDiagnostics(),
+				onModelChange: (model) => this.changeModel(model),
+				onQuickActionsChange: async (actions) => {
+					this.host.settings.quickActions = actions.slice(0, 3);
+					await this.host.saveSettings();
+					this.renderQuickBar();
+				},
+				onOpenLogs: () => this.host.openDiagnostics(),
 			onOpenPrompts: () => this.host.openPrompts(),
 		};
 		new ActionSheetModal(this.app, sheetHost).open();
@@ -354,14 +431,22 @@ export class AgentView extends ItemView {
 			}
 			return;
 		}
-		if (event.type === "error") {
-			this.busyEl?.remove();
-			this.busyEl = null;
-			const block = this.transcriptEl.createDiv({ cls: "oar-message oar-error" });
-			block.createEl("strong", { text: "Agent error" });
-			block.createDiv({ text: event.message });
-			this.scrollToBottom();
-		}
+			if (event.type === "error") {
+				this.busyEl?.remove();
+				this.busyEl = null;
+				if (this.activeStep) {
+					this.activeStep.toggleClass("is-running", false);
+					this.activeStep.open = false;
+				}
+				const block = this.transcriptEl.createDiv({ cls: "oar-message oar-error" });
+				block.createEl("strong", { text: "Agent could not finish" });
+				block.createDiv({ text: event.message });
+				if (this.lastPrompt) {
+					const retry = block.createEl("button", { text: "Retry request", cls: "mod-cta" });
+					retry.addEventListener("click", () => this.retryLastRun());
+				}
+				this.scrollToBottom();
+			}
 	}
 
 	private showImmediateBusy(): void {
@@ -369,33 +454,39 @@ export class AgentView extends ItemView {
 		this.busyEl.setAttribute("role", "status");
 		this.busyEl.setAttribute("aria-live", "polite");
 		this.busyEl.createSpan({ cls: "oar-spinner", attr: { "aria-hidden": "true" } });
-		this.busyEl.createSpan({ text: "Starting agent…" });
+		this.busyEl.createSpan({ text: "Connecting to the selected model… fallback is active" });
 		this.scrollToBottom();
 	}
 
 	private async submit(): Promise<void> {
 		const prompt = this.inputEl.value.trim();
-		if (!prompt || this.runButton.disabled) return;
-		this.inputEl.value = "";
+			if (!prompt || this.runButton.disabled) return;
+			this.lastPrompt = prompt;
+			this.inputEl.value = "";
+			this.inputEl.dispatchEvent(new Event("input"));
 		const history = this.currentChat.messages.slice();
 		const attachments = [...(this.currentChat.attachments ?? [])];
 		this.appendUser(prompt);
-		this.currentChat.messages.push({ role: "user", content: prompt });
-		if (this.currentChat.messages.filter((message) => message.role === "user").length === 1) {
-			this.currentChat.title = prompt.length > 42 ? `${prompt.slice(0, 42)}…` : prompt;
-		}
-		this.showImmediateBusy();
+			this.currentChat.messages.push({ role: "user", content: prompt });
+			if (this.currentChat.messages.filter((message) => message.role === "user").length === 1) {
+				this.currentChat.title = prompt.length > 42 ? `${prompt.slice(0, 42)}…` : prompt;
+			}
+			this.currentChatPersisted = true;
+			this.showImmediateBusy();
+			await this.host.saveChat(this.currentChat);
 		this.runButton.disabled = true;
 		this.continueButton.disabled = true;
 		this.inputEl.disabled = true;
-		this.runButton.textContent = "Working…";
+			this.runButton.empty();
+			setIcon(this.runButton, "loader");
+			this.runButton.setAttribute("aria-label", "Waiting for model response");
 		try {
 				const result = await this.host.runAgent(prompt, history, (event) => this.appendEvent(event), attachments);
 					this.currentChat.model = result.model;
 					this.currentChat.attachments = attachments;
 				this.continueButton.disabled = !result.stopped;
 				this.currentChat.messages = result.messages.filter((message) => message.role !== "system");
-			if (this.currentChatPersisted) await this.host.saveChat(this.currentChat);
+				await this.host.saveChat(this.currentChat);
 		} catch (error) {
 			this.continueButton.disabled = true;
 			this.appendEvent({ type: "error", phase: "error", message: error instanceof Error ? error.message : "Agent run failed." });
@@ -404,11 +495,21 @@ export class AgentView extends ItemView {
 			this.busyEl = null;
 			this.runButton.disabled = false;
 			this.inputEl.disabled = false;
-			this.runButton.textContent = "Run agent";
+				this.runButton.empty();
+				setIcon(this.runButton, "arrow-up");
+				this.runButton.setAttribute("aria-label", "Run agent");
 		}
+		}
+
+	private retryLastRun(): void {
+		if (!this.lastPrompt || this.runButton.disabled) return;
+		const lastMessage = this.currentChat.messages[this.currentChat.messages.length - 1];
+		if (lastMessage?.role === "user" && lastMessage.content === this.lastPrompt) this.currentChat.messages.pop();
+		this.inputEl.value = this.lastPrompt;
+		void this.submit();
 	}
 
-	async onClose(): Promise<void> {
+		async onClose(): Promise<void> {
 		this.containerEl.empty();
 	}
 }

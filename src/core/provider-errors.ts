@@ -27,6 +27,11 @@ export function isRateLimitError(error: unknown): boolean {
 	return /(?:http\s*429|status\s*[:=]?\s*429|rate[ -]?limit|quota|resource[_ -]?exhausted|too many requests|exceeded.*limit)/i.test(errorText(error));
 }
 
+export function isTransientProviderError(error: unknown): boolean {
+	const status = error instanceof ProviderRequestError ? error.status : errorStatus(error);
+	return (typeof status === "number" && status >= 500 && status <= 599) || /(?:high demand|temporarily|try again later|service unavailable|overloaded|capacity)/i.test(errorText(error));
+}
+
 export function isModelUnavailableError(error: unknown): boolean {
 	const status = error instanceof ProviderRequestError ? error.status : errorStatus(error);
 	const code = error instanceof ProviderRequestError ? error.code : errorCode(error);

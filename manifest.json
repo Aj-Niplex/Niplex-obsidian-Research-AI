@@ -1,9 +1,9 @@
 {
 	"id": "obsidian-agentic-research",
-	"name": "Obsidian Agentic Research",
+	"name": "Niplex Obsidian Research AI",
 	"version": "0.1.0",
 	"minAppVersion": "1.11.4",
-	"description": "Run bounded, auditable agentic research tasks over your Obsidian vault with Gemini or Agnes.",
+	"description": "Autonomous, mobile-first Obsidian research AI with bounded vault context, transparent prompts, and approved edits.",
 	"author": "Aj-Niplex",
 	"authorUrl": "https://github.com/Aj-Niplex",
 	"isDesktopOnly": false

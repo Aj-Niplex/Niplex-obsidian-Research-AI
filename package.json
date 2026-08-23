@@ -1,7 +1,7 @@
 {
   "name": "obsidian-agentic-research",
   "version": "0.1.0",
-  "description": "Mobile-first Obsidian agent plugin for bounded vault context and research workflows.",
+  "description": "Autonomous, mobile-first Obsidian research AI with bounded vault context, transparent prompts, and approved edits.",
   "main": "main.js",
   "type": "module",
   "scripts": {

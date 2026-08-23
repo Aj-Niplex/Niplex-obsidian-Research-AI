@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ProviderRequestError } from "../src/core/provider-errors";
 import { completeWithModelFallback } from "../src/core/model-fallback";
-import type { ProviderAdapter, ProviderModel, ProviderRequest, ProviderResponse } from "../src/core/types";
+import type { ModelCooldown, ProviderAdapter, ProviderModel, ProviderRequest, ProviderResponse } from "../src/core/types";
 
 const request: ProviderRequest = { model: "primary", messages: [], tools: [] };
 
@@ -38,6 +38,19 @@ test("tries configured same-provider fallback before the remaining live catalogu
 	assert.deepEqual(events, ["cooling_down", "checking", "primary->preferred-backup"]);
 });
 
+test("falls back when a provider reports temporary high demand", async () => {
+	const provider = new FakeProvider({ primary: new ProviderRequestError("This model is currently experiencing high demand. Please try again later.", 503), "preferred-backup": { text: "recovered", toolCalls: [] } });
+	const events: string[] = [];
+	const result = await completeWithModelFallback(provider, request, {
+		enabled: true,
+		configuredFallbackModels: ["preferred-backup"],
+		onEvent: (event) => events.push(event.type === "switching" ? `${event.from}->${event.to}` : event.type),
+	});
+	assert.equal(result.model, "preferred-backup");
+	assert.deepEqual(provider.attempted, ["primary", "preferred-backup"]);
+	assert.deepEqual(events, ["cooling_down", "checking", "primary->preferred-backup"]);
+});
+
 test("does not fallback for authentication or malformed-request errors", async () => {
 	const provider = new FakeProvider({ primary: new ProviderRequestError("invalid API key", 401) });
 	await assert.rejects(
@@ -48,7 +61,7 @@ test("does not fallback for authentication or malformed-request errors", async (
 });
 
 test("skips a rate-limited model across later calls and allows it after expiry", async () => {
-	const cooldowns: Record<string, { until: number; reason: "rate-limit" | "unavailable" }> = {};
+	const cooldowns: Record<string, ModelCooldown> = {};
 	const provider = new FakeProvider({ primary: new ProviderRequestError("quota exceeded", 429), "preferred-backup": { text: "recovered", toolCalls: [] } });
 	const before = Date.now();
 	await completeWithModelFallback(provider, request, { enabled: true, configuredFallbackModels: ["preferred-backup"], cooldowns });
@@ -64,7 +77,7 @@ test("skips a rate-limited model across later calls and allows it after expiry",
 });
 
 test("quarantines a stale model without treating it as a rate limit", async () => {
-	const cooldowns: Record<string, { until: number; reason: "rate-limit" | "unavailable" }> = {};
+	const cooldowns: Record<string, ModelCooldown> = {};
 	const provider = new FakeProvider({ primary: new ProviderRequestError("This model is no longer available", 400), "preferred-backup": { text: "recovered", toolCalls: [] } });
 	const result = await completeWithModelFallback(provider, request, { enabled: true, configuredFallbackModels: ["preferred-backup"], cooldowns });
 	assert.equal(result.model, "preferred-backup");

@@ -199,8 +199,18 @@ export class VaultContext {
 				.slice(0, Math.min(Math.max(limit, 1), 250));
 		}
 
-	getMarkdownFilesInFolder(folder: string): string[] {
-		const sanitized = sanitizeVaultPath(folder);
+		getMarkdownFolders(limit = 120): string[] {
+			const folders = new Set<string>();
+			for (const file of this.vault.getMarkdownFiles()) {
+				if (this.isProtected(file.path)) continue;
+				const parts = file.path.split("/");
+				for (let index = 1; index < parts.length; index += 1) folders.add(parts.slice(0, index).join("/"));
+			}
+			return [...folders].sort((a, b) => a.localeCompare(b)).slice(0, Math.min(Math.max(limit, 1), 250));
+		}
+
+		getMarkdownFilesInFolder(folder: string): string[] {
+			const sanitized = sanitizeVaultPath(folder);
 		if (!sanitized) return [];
 		const cleanFolder = sanitized.replace(/\/+$/g, "");
 		return this.vault

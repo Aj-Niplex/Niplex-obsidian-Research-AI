@@ -1,4 +1,6 @@
 export type ProviderId = "gemini" | "agnes";
+export type ResearchMode = "plan" | "chat" | "edit";
+export type QuickActionId = "history" | "attach" | "moc" | "continue" | "prompts" | "logs";
 
 export type Role = "system" | "user" | "assistant" | "tool";
 
@@ -51,7 +53,7 @@ export interface ProviderModel {
 	label: string;
 }
 
-export type ModelCooldownReason = "rate-limit" | "unavailable" | "timeout";
+export type ModelCooldownReason = "rate-limit" | "unavailable" | "timeout" | "transient";
 
 export interface ModelCooldown {
 	until: number;
@@ -139,6 +141,8 @@ export interface AgentSettings {
 	activeMocPath: string;
 	userSystemPrompt: string;
 	writeApprovalPolicy: WriteApprovalPolicy;
+	quickActions: QuickActionId[];
+	researchMode: ResearchMode;
 	onboardingVersion: number;
 }
 
@@ -159,5 +163,7 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	activeMocPath: "",
 	userSystemPrompt: "",
 	writeApprovalPolicy: { mode: "always", expiresAt: 0, pathPrefix: "", tools: [] },
+	quickActions: ["history", "moc", "prompts"],
+	researchMode: "chat",
 	onboardingVersion: 0,
 };

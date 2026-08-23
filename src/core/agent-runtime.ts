@@ -97,12 +97,12 @@ export class AgentRuntime {
 		let activeModel = configuredModel(this.settings);
 		for (let iteration = 1; iteration <= this.settings.maxIterations; iteration += 1) {
 			trimHistory(messages);
-			emit({
-				type: "status",
-				phase: "thinking",
-				step: iteration,
-				message: iteration === 1 ? "Thinking about the request…" : "Reviewing the next bounded context…",
-			});
+				emit({
+					type: "status",
+					phase: "thinking",
+					step: iteration,
+					message: iteration === 1 ? `Sending bounded context to ${activeModel}. Fallback is active if this model is busy.` : `Reviewing the next bounded context with ${activeModel}…`,
+				});
 			let response;
 			try {
 				const completed = await completeWithModelFallback(
@@ -116,7 +116,7 @@ export class AgentRuntime {
 								if (event.type === "checking") emit({ type: "status", phase: "thinking", step: iteration, message: `${event.from} is unavailable or cooling down. Checking another available ${this.settings.provider} model…` });
 								else if (event.type === "cooling_down") {
 									const seconds = event.until ? Math.max(1, Math.ceil((event.until - Date.now()) / 1000)) : 60;
-									const message = event.reason === "rate-limit" ? `Rate-limited: ${event.from} will be skipped for about ${seconds}s.` : event.reason === "timeout" ? `Timed out: ${event.from} will be skipped for about ${seconds}s.` : `Model ${event.from} is unavailable and will be skipped for about ${seconds}s.`;
+									const message = event.reason === "rate-limit" ? `Rate-limited: ${event.from} will be skipped for about ${seconds}s.` : event.reason === "timeout" ? `Timed out: ${event.from} will be skipped for about ${seconds}s.` : event.reason === "transient" ? `${event.from} is busy or at capacity; it will be skipped for about ${seconds}s.` : `Model ${event.from} is unavailable and will be skipped for about ${seconds}s.`;
 									emit({ type: "status", phase: "thinking", step: iteration, message });
 									this.onDiagnostic?.("warn", "model-cooldown", message, event.from);
 								} else if (event.to) {
@@ -130,8 +130,8 @@ export class AgentRuntime {
 				activeModel = completed.model;
 				response = completed.response;
 			} catch (error) {
-					const message = `Provider request failed: ${safeError(error)}`;
-					emit({ type: "error", phase: "error", step: iteration, message });
+						const message = `Provider request failed on ${activeModel}: ${safeError(error)} Try the visible Retry action or switch models from Actions.`;
+						emit({ type: "error", phase: "error", step: iteration, message });
 					this.onDiagnostic?.("error", "provider-request-failed", message, activeModel);
 					return { text: message, messages, model: activeModel };
 			}
@@ -174,8 +174,14 @@ export class AgentRuntime {
 				emit({ type: "tool", phase: "tool", step: iteration, message: unknown.content, tool: call, result: unknown });
 				continue;
 			}
-			if (!definition.readOnly && !(await approve(definition, call))) {
-				const denied: ToolResult = { ok: false, isError: true, content: "User denied this write action." };
+				if (!definition.readOnly && this.settings.researchMode !== "edit") {
+					const denied: ToolResult = { ok: false, isError: true, content: `Write blocked in ${this.settings.researchMode} mode. Switch the mode selector to Create & edit before requesting a durable change.` };
+					messages.push({ role: "tool", content: denied.content, toolCallId: call.id, toolName: call.name });
+					emit({ type: "tool", phase: "tool", step: iteration, message: denied.content, tool: call, result: denied });
+					continue;
+				}
+				if (!definition.readOnly && !(await approve(definition, call))) {
+					const denied: ToolResult = { ok: false, isError: true, content: "User denied this write action." };
 				messages.push({ role: "tool", content: denied.content, toolCallId: call.id, toolName: call.name });
 				emit({ type: "tool", phase: "tool", step: iteration, message: denied.content, tool: call, result: denied });
 				continue;

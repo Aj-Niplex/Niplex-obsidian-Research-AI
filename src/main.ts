@@ -228,7 +228,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		attachedFiles: string[] = [],
 	): Promise<AgentRunResult> {
 		await this.ensureUsableModel(this.settings.provider);
-		const hints: string[] = [];
+		const hints: string[] = [`Selected research mode: ${this.settings.researchMode}. In plan and chat modes, do not request write tools; create and edit mode is required before a durable change can be considered.`];
 		const activeFile = this.app.workspace.getActiveFile();
 		if (activeFile) hints.push(`The currently open note is ${activeFile.path}. Use tools to inspect it if relevant.`);
 		const vaultContext = this.createVaultContext();
@@ -286,6 +286,14 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 
 	searchMarkdownPaths(query = "", limit = 100): string[] {
 		return this.createVaultContext().searchMarkdownPaths(query, limit);
+	}
+
+	getMarkdownFolders(limit = 120): string[] {
+		return this.createVaultContext().getMarkdownFolders(limit);
+	}
+
+	getMarkdownFilesInFolder(folder: string, limit = 8): string[] {
+		return this.createVaultContext().getMarkdownFilesInFolder(folder).slice(0, Math.min(Math.max(limit, 1), 8));
 	}
 
 	getMocCheckpoint(): MocCheckpoint | undefined {
