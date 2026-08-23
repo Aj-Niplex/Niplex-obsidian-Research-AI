@@ -72,13 +72,21 @@ sequenceDiagram
 
 ## Installation from GitHub source
 
-This project is currently distributed as source and a locally packaged Obsidian plugin rather than as a Community Plugins listing.
+This project is currently distributed as source rather than as a Community Plugins listing or a prebuilt GitHub release asset. The product repository is public; the development repository is private.
 
-1. Download the latest `main.js`, `manifest.json`, and `styles.css` from the [private development repository](https://github.com/Aj-Niplex/Dev-obsidian-agentic-research) or the product repository [Niplex-ovsidian-Research-AI](https://github.com/Aj-Niplex/Niplex-ovsidian-Research-AI).
+1. Clone the [public product repository](https://github.com/Aj-Niplex/Niplex-ovsidian-Research-AI), install dependencies, and build locally.
 2. Create a folder named `obsidian-agentic-research` inside the target vault’s `.obsidian/plugins/` directory.
-3. Copy those three files into that folder.
+3. Copy the locally generated `main.js` together with `manifest.json` and `styles.css` into that folder.
 4. Reload Obsidian, enable **Niplex Obsidian Research AI**, and complete the walkthrough.
 5. Enter a Gemini or Agnes API key in plugin settings. Keys remain in Obsidian SecretStorage and are never written into `NIPLEX-OBSIDIAN`.
+
+```bash
+git clone https://github.com/Aj-Niplex/Niplex-ovsidian-Research-AI.git
+cd Niplex-ovsidian-Research-AI
+npm install
+npm run build
+# Copy main.js, manifest.json, and styles.css to your vault’s .obsidian/plugins/obsidian-agentic-research/
+```
 
 For development, clone the repository, install dependencies, and run the local checks:
 
@@ -87,7 +95,6 @@ npm install
 npm test
 npm run build
 npm run validate
-npm run package:release
 ```
 
 No GitHub Actions workflow or paid runner is required. The local validation script is authoritative for this project.
