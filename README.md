@@ -24,6 +24,7 @@ It reads metadata, searches narrowly, opens line windows, and follows relevant l
 | Quick actions | Users choose up to three icon actions for the left side of the quick bar. The model selector and research-mode selector remain directly beside them. |
 | AI-discovered MOCs | Creates category notes with short summaries, supports multi-category membership, and writes a super-MOC under `NIPLEX-OBSIDIAN/MOCs/`. Runs checkpoint and resume instead of looking frozen during long mobile work. |
 | Skills | The optional helper installs only reviewed, instruction-only packages after code lookup, digest verification, preview, and explicit approval. |
+| Public video input | Detects one public YouTube URL in a focused question and sends it to Gemini as a bounded `fileData.fileUri` video part. Agnes receives the URL as text because its current adapter does not claim native video input. |
 
 ## Mobile interaction model
 
@@ -105,6 +106,12 @@ Choose a provider in settings and enter its key through Obsidian’s SecretStora
 
 When a model is rate-limited, times out, reports temporary high demand, or is unavailable, the transcript immediately shows the model name, reason, cooldown period, and next fallback attempt. The user can retry the last request directly from the error card or switch the model from the quick bar. Authentication and malformed-request errors remain visible as actionable failures instead of being silently retried.
 
+## Public YouTube sources
+
+Paste one public YouTube URL into a focused question, for example, `https://youtu.be/VIDEO_ID`, and ask for a summary, timestamp question, or evidence extraction. The plugin canonicalizes the URL and sends it to Gemini using the documented `fileData.fileUri` video input. The URL is not downloaded into the vault, and no private or unlisted video is accepted by the URL parser. Gemini’s public-video processing limits and account quota still apply.
+
+Agnes remains available for text and vault research, but its current adapter does not advertise native video parts. When Agnes is selected, the transcript explicitly says that the link is being treated as text and recommends switching to Gemini for direct video analysis. This plugin cannot call the host assistant’s private tools; it uses only the providers and vault tools configured inside the plugin.
+
 ## User-owned workspace
 
 The plugin stores user-facing AI data in the visible vault folder below:
@@ -155,7 +162,7 @@ Diagnostics are intentionally redacted. They may include provider/model events, 
 
 ## Current limitations
 
-The plugin still needs physical Android and iOS testing inside a real Obsidian vault. In particular, verify SecretStorage behavior, modal sizing, Graph View instructions, folder attachment ordering, local chat persistence, provider fallback with the user’s keys, and helper authentication against a private fork. The product does not currently run background schedules or automatic vault hooks.
+The plugin still needs physical Android and iOS testing inside a real Obsidian vault. In particular, verify SecretStorage behavior, modal sizing, Graph View instructions, folder attachment ordering, local chat persistence, provider fallback with the user’s keys, public YouTube handling with Gemini, and helper authentication against a private fork. The product does not currently run background schedules or automatic vault hooks.
 
 ## Repository layout
 

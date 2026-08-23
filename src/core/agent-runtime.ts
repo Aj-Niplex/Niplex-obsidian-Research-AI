@@ -4,6 +4,7 @@ import type { AgentSettings, ChatMessage, ToolCall, ToolDefinition, ToolResult, 
 import { VaultContext } from "./vault-context";
 import { protectHistory } from "./system-prompt";
 import { boundHistoryMessages, boundText, CONTEXT_BUDGETS } from "./context-budget";
+import { extractYoutubeUrl } from "./youtube";
 
 export type AgentEventPhase = "thinking" | "tool" | "answer" | "error" | "complete";
 
@@ -92,7 +93,9 @@ export class AgentRuntime {
 		history: ChatMessage[] = [],
 	): Promise<AgentRunResult> {
 		const messages: ChatMessage[] = protectHistory(history.map(cloneMessage), this.settings.userSystemPrompt);
-		messages.push({ role: "user", content: boundText(prompt.trim(), CONTEXT_BUDGETS.maxRequestMessageChars) });
+		const boundedPrompt = boundText(prompt.trim(), CONTEXT_BUDGETS.maxRequestMessageChars);
+		const videoUrl = extractYoutubeUrl(boundedPrompt);
+		messages.push({ role: "user", content: boundedPrompt, ...(videoUrl ? { videoUrl } : {}) });
 		let lastText = "";
 		let activeModel = configuredModel(this.settings);
 		for (let iteration = 1; iteration <= this.settings.maxIterations; iteration += 1) {
@@ -101,8 +104,10 @@ export class AgentRuntime {
 					type: "status",
 					phase: "thinking",
 					step: iteration,
-					message: iteration === 1 ? `Sending bounded context to ${activeModel}. Fallback is active if this model is busy.` : `Reviewing the next bounded context with ${activeModel}…`,
-				});
+					message: iteration === 1 && videoUrl
+						? this.provider.id === "gemini" ? `Public YouTube video detected. Sending one bounded video source to ${activeModel}.` : `Public YouTube video detected. ${this.provider.id} receives the link as text; switch to Gemini for direct video analysis.`
+						: iteration === 1 ? `Sending bounded context to ${activeModel}. Fallback is active if this model is busy.` : `Reviewing the next bounded context with ${activeModel}…`,
+					});
 			let response;
 			try {
 				const completed = await completeWithModelFallback(

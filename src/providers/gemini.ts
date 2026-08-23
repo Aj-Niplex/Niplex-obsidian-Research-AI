@@ -31,8 +31,10 @@ function toGeminiContents(messages: ChatMessage[]): { contents: unknown[]; syste
 					],
 				};
 			}
-			const parts: unknown[] = [];
-			if (message.content) parts.push({ text: message.content });
+				const parts: unknown[] = [];
+				if (message.videoUrl) parts.push({ fileData: { fileUri: message.videoUrl } });
+				if (message.content) parts.push({ text: message.content });
+
 			for (const call of message.toolCalls ?? []) {
 				parts.push({
 					functionCall: { name: call.name, args: call.arguments, id: call.id },

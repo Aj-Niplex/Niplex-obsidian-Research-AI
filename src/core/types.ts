@@ -10,6 +10,7 @@ export interface ChatMessage {
 	toolCallId?: string;
 	toolName?: string;
 	toolCalls?: ToolCall[];
+	videoUrl?: string;
 }
 
 export interface SavedChat {
