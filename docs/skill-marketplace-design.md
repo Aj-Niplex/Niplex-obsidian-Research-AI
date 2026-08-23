@@ -6,9 +6,9 @@ The marketplace distributes **instruction-only Obsidian research skills**. A ski
 
 ## Catalogue and code
 
-The private `Aj-Niplex/Niplex-Obsidian-skills` repository contains a versioned `catalogue.json`. Every catalogue entry has a unique uppercase five-character alphanumeric `code`, such as `RSH01`, together with a name, version, description, relative package path, SHA-256 digest, and supported helper-protocol version. A package contains `skill.json` and `SKILL.md`; it must not contain executable files or hidden dependencies.
+The public-for-preview `Aj-Niplex/Niplex-Obsidian-skills` repository contains a versioned `catalogue.json`. Every catalogue entry has a unique uppercase five-character alphanumeric `code`, such as `RSH01`, together with a name, version, description, relative package path, SHA-256 digest, and supported helper-protocol version. A package contains `skill.json` and `SKILL.md`; it must not contain executable files or hidden dependencies.
 
-The helper plugin does not embed a GitHub token. The user supplies a read-only fine-grained token only if the private catalogue cannot be reached through the configured endpoint, and the token is stored with Obsidian SecretStorage. A user may instead provide a self-hosted or exported catalogue URL. No provider key is reused for marketplace access.
+The helper plugin does not embed a GitHub token. The public catalogue works without a PAT. The user supplies a read-only fine-grained token only if a later private fork or private endpoint needs authentication, and the token is stored with Obsidian SecretStorage. A user may instead provide a self-hosted or exported catalogue URL. No provider key is reused for marketplace access.
 
 ## Lookup and installation flow
 
@@ -44,4 +44,4 @@ The helper is deliberately a separate plugin. This keeps marketplace networking 
 
 ## Release safety
 
-Both repositories use local validation and packaging only. No GitHub Actions workflow is required. The skills repository is private by default. If a future public read-only catalogue is desired, the endpoint can change without changing the package schema or installation safeguards.
+Both repositories use local validation and packaging only. No GitHub Actions workflow is required. The skills repository is public for preview while the main and helper plugin repositories remain private by default. If a future public read-only catalogue is desired, the endpoint can change without changing the package schema or installation safeguards.

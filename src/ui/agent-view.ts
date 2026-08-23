@@ -3,6 +3,7 @@ import type { AgentEvent, AgentRunResult } from "../core/agent-runtime";
 import type { AgentSettings, ChatMessage, ProviderId, ProviderModel, SavedChat } from "../core/types";
 import { MocModal, type MocHost } from "./moc-modal";
 import { FilePickerModal, type FilePickerHost } from "./file-picker-modal";
+import { ActionSheetModal, type ActionSheetHost } from "./action-sheet-modal";
 
 export const AGENT_VIEW_TYPE = "obsidian-agentic-research-view";
 
@@ -14,6 +15,7 @@ export interface AgentViewHost extends MocHost, FilePickerHost {
 	getChat(id: string): SavedChat | null;
 	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<ProviderModel[]>;
 	openDiagnostics(): void;
+	openPrompts(): void;
 	saveChat(chat: SavedChat): Promise<void>;
 	deleteChat(id: string): Promise<void>;
 }
@@ -29,12 +31,7 @@ export class AgentView extends ItemView {
 	private inputEl!: HTMLTextAreaElement;
 	private runButton!: HTMLButtonElement;
 	private continueButton!: HTMLButtonElement;
-	private providerSelect!: HTMLSelectElement;
-	private modelSelect!: HTMLSelectElement;
-	private chatSelect!: HTMLSelectElement;
-	private chatSearchEl!: HTMLInputElement;
-	private saveChatButton!: HTMLButtonElement;
-	private deleteChatButton!: HTMLButtonElement;
+
 	private attachButton!: HTMLButtonElement;
 	private attachmentListEl!: HTMLElement;
 	private scopeEl!: HTMLElement;
@@ -67,46 +64,21 @@ export class AgentView extends ItemView {
 		this.scopeEl = header.createDiv({ cls: "oar-scope" });
 		this.refreshScopeText();
 
-		const toolbar = header.createDiv({ cls: "oar-toolbar" });
-			this.chatSearchEl = toolbar.createEl("input", { type: "search", placeholder: "Search saved chats…", cls: "oar-chat-search", attr: { "aria-label": "Search saved chats" } });
-			this.chatSearchEl.addEventListener("input", () => this.refreshChatOptions());
-			this.chatSelect = toolbar.createEl("select", { cls: "oar-chat-select", attr: { "aria-label": "Saved chat" } });
-			this.chatSelect.addEventListener("change", () => this.selectChat(this.chatSelect.value));
-		const newButton = toolbar.createEl("button", { text: "New chat" });
-		newButton.addEventListener("click", () => this.startNewChat());
-		this.saveChatButton = toolbar.createEl("button", { text: "Save" });
-		this.saveChatButton.addEventListener("click", () => void this.saveCurrentChat());
-		this.deleteChatButton = toolbar.createEl("button", { text: "Delete" });
-		this.deleteChatButton.addEventListener("click", () => void this.deleteCurrentChat());
-			const mocButton = toolbar.createEl("button", { text: "MOC" });
-			mocButton.addEventListener("click", () => new MocModal(this.app, this.host, () => this.refreshScopeText()).open());
-			const logsButton = toolbar.createEl("button", { text: "Logs" });
-			logsButton.addEventListener("click", () => this.host.openDiagnostics());
-			toolbar.createEl("label", { text: "Provider" });
-			this.providerSelect = toolbar.createEl("select", { cls: "oar-provider-select", attr: { "aria-label": "Provider" } });
-			this.providerSelect.add(new Option("Google Gemini", "gemini"));
-			this.providerSelect.add(new Option("Agnes AI", "agnes"));
-			this.providerSelect.value = this.host.settings.provider;
-			this.providerSelect.addEventListener("change", () => void this.changeProvider(this.providerSelect.value as ProviderId));
-			toolbar.createEl("label", { text: "Model" });
-			this.modelSelect = toolbar.createEl("select", { cls: "oar-model-select", attr: { "aria-label": "Model" } });
-			void this.refreshModelOptions();
-			this.modelSelect.addEventListener("change", () => void this.changeModel(this.modelSelect.value));
-		this.refreshChatOptions();
+			const toolbar = header.createDiv({ cls: "oar-toolbar oar-toolbar-compact" });
+			const actionsButton = toolbar.createEl("button", { text: "Research actions", cls: "oar-actions-button" });
+			actionsButton.addEventListener("click", () => this.openActionSheet());
 
 		this.transcriptEl = root.createDiv({ cls: "oar-transcript" });
 		this.renderCurrentChat();
 
 			const composer = root.createDiv({ cls: "oar-composer" });
+			composer.createDiv({ cls: "oar-composer-hint", text: "Ask one focused question. Add context only when you need it." });
 			this.inputEl = composer.createEl("textarea", {
 				attr: { rows: "4", placeholder: "Ask the agent to research your vault…" },
 			});
 			this.attachmentListEl = composer.createDiv({ cls: "oar-attachment-list" });
 			this.attachButton = composer.createEl("button", { text: "Attach files", cls: "oar-attach-button" });
-			this.attachButton.addEventListener("click", () => new FilePickerModal(this.app, this.host, this.currentChat.attachments ?? [], (paths) => {
-				this.currentChat.attachments = paths;
-				this.renderAttachmentChips();
-			}).open());
+			this.attachButton.addEventListener("click", () => this.openFilePicker());
 			this.renderAttachmentChips();
 				const composerActions = composer.createDiv({ cls: "oar-composer-actions" });
 			this.runButton = composerActions.createEl("button", { text: "Run agent", cls: "mod-cta" });
@@ -132,34 +104,7 @@ export class AgentView extends ItemView {
 			: "Scope: adaptive vault search; no MOC selected";
 	}
 
-	private async refreshModelOptions(forceRefresh = false): Promise<void> {
-		if (!this.modelSelect) return;
-		const provider = this.host.settings.provider;
-		let selected = provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
-		let models: ProviderModel[] = [];
-		try {
-			models = await this.host.getModelCatalogue(provider, forceRefresh);
-		} catch {
-			models = [];
-		}
-		const selectedIsLive = models.some((model) => model.id === selected);
-		if (models.length && !selectedIsLive) {
-			const replacement = models.find((model) => /(?:flash|mini|instant)/i.test(model.id)) ?? models[0];
-			if (replacement) {
-				const previous = selected;
-				selected = replacement.id;
-				if (provider === "gemini") this.host.settings.geminiModel = selected;
-				else this.host.settings.agnesModel = selected;
-				this.currentChat.model = selected;
-				void this.host.saveSettings();
-				new Notice(`Removed unavailable model ${previous}; using ${selected}.`);
-			}
-		}
-		const entries = models.length ? models : [{ id: selected, label: `${selected} · catalogue unavailable` }];
-		this.modelSelect.empty();
-		for (const model of entries) this.modelSelect.add(new Option(model.label, model.id));
-		this.modelSelect.value = selected;
-	}
+
 
 	private async changeModel(model: string): Promise<void> {
 		const value = model.trim();
@@ -177,23 +122,7 @@ export class AgentView extends ItemView {
 		this.currentChat.provider = provider;
 		this.currentChat.model = provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
 		await this.host.saveSettings();
-		await this.refreshModelOptions();
 		new Notice(`Next agent turn will use ${this.currentChat.model}.`);
-	}
-
-	private refreshChatOptions(): void {
-		if (!this.chatSelect) return;
-		this.chatSelect.empty();
-			this.chatSelect.add(new Option("Current chat", this.currentChat.id));
-			const query = this.chatSearchEl?.value.trim().toLowerCase() ?? "";
-			for (const chat of this.host.getChats()) {
-				if (chat.id === this.currentChat.id) continue;
-				const haystack = `${chat.title}\n${chat.messages.map((message) => message.content).join("\n")}`.toLowerCase();
-				if (query && !haystack.includes(query)) continue;
-				this.chatSelect.add(new Option(chat.title, chat.id));
-			}
-		this.chatSelect.value = this.currentChat.id;
-		this.deleteChatButton.disabled = !this.currentChatPersisted;
 	}
 
 	private selectChat(id: string): void {
@@ -208,9 +137,7 @@ export class AgentView extends ItemView {
 				if (chat.provider === "gemini") this.host.settings.geminiModel = chat.model;
 				else this.host.settings.agnesModel = chat.model;
 			}
-			this.providerSelect.value = chat.provider;
-			void this.host.saveSettings();
-			void this.refreshModelOptions();
+				void this.host.saveSettings();
 		this.renderCurrentChat();
 		this.renderAttachmentChips();
 	}
@@ -220,10 +147,41 @@ export class AgentView extends ItemView {
 		this.currentChat.provider = this.host.settings.provider;
 		this.currentChat.model = this.host.settings.provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
 			this.currentChatPersisted = false;
-			void this.refreshModelOptions();
 			this.renderCurrentChat();
-		this.refreshChatOptions();
 		this.renderAttachmentChips();
+	}
+
+	private openFilePicker(): void {
+		new FilePickerModal(this.app, this.host, this.currentChat.attachments ?? [], (paths) => {
+			this.currentChat.attachments = paths;
+			this.renderAttachmentChips();
+		}).open();
+	}
+
+	private openActionSheet(): void {
+		const sheetHost: ActionSheetHost = {
+			settings: this.host.settings,
+			currentChat: this.currentChat,
+			currentChatPersisted: this.currentChatPersisted,
+			getChats: () => this.host.getChats(),
+			getChat: (id) => this.host.getChat(id),
+			getModelCatalogue: (provider, forceRefresh) => this.host.getModelCatalogue(provider, forceRefresh),
+			onNewChat: () => this.startNewChat(),
+			onSaveChat: () => this.saveCurrentChat(),
+			onDeleteChat: () => this.deleteCurrentChat(),
+			onSelectChat: (id) => this.selectChat(id),
+			onAttachFiles: () => this.openFilePicker(),
+			onOpenMoc: () => new MocModal(this.app, this.host, () => this.refreshScopeText()).open(),
+			onContinue: () => {
+				this.inputEl.value = "Continue the research from the existing bounded evidence. Read another relevant file only when needed, then update the answer.";
+				void this.submit();
+			},
+			onProviderChange: (provider) => this.changeProvider(provider),
+			onModelChange: (model) => this.changeModel(model),
+			onOpenLogs: () => this.host.openDiagnostics(),
+			onOpenPrompts: () => this.host.openPrompts(),
+		};
+		new ActionSheetModal(this.app, sheetHost).open();
 	}
 
 	private renderAttachmentChips(): void {
@@ -267,9 +225,8 @@ export class AgentView extends ItemView {
 		this.currentChat.provider = this.host.settings.provider;
 		if (!this.currentChat.model) this.currentChat.model = this.host.settings.provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
 		await this.host.saveChat(this.currentChat);
-		this.currentChatPersisted = true;
-		this.refreshChatOptions();
-		new Notice("Chat saved for later reference.");
+			this.currentChatPersisted = true;
+			new Notice("Chat saved for later reference.");
 	}
 
 	private async deleteCurrentChat(): Promise<void> {
@@ -441,8 +398,6 @@ export class AgentView extends ItemView {
 			this.runButton.disabled = false;
 			this.inputEl.disabled = false;
 			this.runButton.textContent = "Run agent";
-				void this.refreshModelOptions();
-			this.refreshChatOptions();
 		}
 	}
 

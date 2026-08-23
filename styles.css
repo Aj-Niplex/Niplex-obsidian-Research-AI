@@ -840,3 +840,155 @@
 	background: var(--background-primary);
 	color: var(--text-normal);
 }
+
+/* Focused mobile workspace: advanced controls live in the action sheet. */
+.oar-toolbar-compact {
+	justify-content: flex-end;
+	margin-top: var(--size-4-2);
+}
+
+.oar-actions-button {
+	width: auto !important;
+	min-height: 2.5rem;
+	padding-inline: var(--size-4-4);
+}
+
+.oar-composer {
+	margin-top: var(--size-4-2);
+	padding: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l, 1rem);
+	background: var(--background-secondary);
+}
+
+.oar-composer-hint {
+	margin-bottom: var(--size-4-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.oar-composer textarea {
+	min-height: 4rem;
+	margin-bottom: var(--size-4-2);
+	border: 0;
+	background: var(--background-primary);
+	resize: none;
+}
+
+.oar-composer-actions {
+	align-items: stretch;
+}
+
+.oar-composer-actions button {
+	min-height: 2.75rem;
+}
+
+.oar-continue-button:disabled {
+	display: none;
+}
+
+.oar-action-sheet-modal {
+	width: min(100%, 38rem);
+	max-width: 100%;
+	margin: 0;
+	border-radius: var(--radius-l, 1rem) var(--radius-l, 1rem) 0 0;
+	overflow: hidden;
+}
+
+.modal-container:has(.oar-action-sheet-modal) {
+	align-items: flex-end;
+	justify-content: center;
+	padding: 0;
+}
+
+.oar-action-sheet {
+	max-height: 88vh;
+	padding: var(--size-4-3) var(--size-4-3) max(var(--size-4-4), env(safe-area-inset-bottom));
+	overflow-y: auto;
+	font-family: var(--font-interface, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.oar-action-sheet-handle {
+	width: 2.5rem;
+	height: 0.25rem;
+	margin: 0 auto var(--size-4-3);
+	border-radius: 999px;
+	background: var(--background-modifier-border);
+}
+
+.oar-action-sheet h2 {
+	margin: 0;
+}
+
+.oar-action-section {
+	margin-top: var(--size-4-4);
+}
+
+.oar-action-section h3 {
+	margin: 0 0 var(--size-4-2);
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.oar-action-button-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--size-4-2);
+}
+
+.oar-action-card,
+.oar-action-button-grid > button {
+	min-height: 3.25rem;
+	text-align: left;
+}
+
+.oar-action-card {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: var(--size-4-1);
+	padding: var(--size-4-2);
+}
+
+.oar-action-card small {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.3;
+}
+
+.oar-action-search,
+.oar-action-select {
+	width: 100%;
+	min-height: 2.5rem;
+	margin-bottom: var(--size-4-2);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.oar-action-control-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+	gap: var(--size-4-2);
+}
+
+.oar-action-control-row .oar-action-select {
+	margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+	.oar-actions-button {
+		width: 100% !important;
+	}
+
+	.oar-action-button-grid {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.modal-container:has(.oar-action-sheet-modal) {
+		animation: none;
+	}
+}
