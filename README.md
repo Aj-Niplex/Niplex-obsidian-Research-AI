@@ -140,7 +140,7 @@ A MOC is a navigation aid, not a whole-vault export. The regular agent still cho
 The optional [Niplex Obsidian Helper](https://github.com/Aj-Niplex/niplex-obsidian-helper) provides the marketplace surface. Its default public catalogue is:
 
 ```text
-https://github.com/Aj-Niplex/Niplex-Obsidian-skills/raw/refs/heads/main/catalogue.json
+https://raw.githubusercontent.com/Aj-Niplex/Niplex-Obsidian-skills/main/catalogue.json
 ```
 
 Enter a five-character code such as `RSH01`, inspect the returned package, and explicitly approve installation. The helper verifies a SHA-256 digest and writes only `skill.json` and `SKILL.md` into `NIPLEX-OBSIDIAN/Skills/`. After relaunch, the main plugin loads the package as untrusted additive guidance and applies only allowlisted numeric settings patches.
