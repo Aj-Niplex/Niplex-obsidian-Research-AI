@@ -1,6 +1,6 @@
 {
   "name": "niplex-agentic-research",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Autonomous, mobile-first Obsidian research AI with bounded vault context, transparent prompts, and approved edits.",
   "main": "main.js",
   "type": "module",
@@ -12,7 +12,13 @@
     "validate": "node scripts/validate-release.mjs",
     "package:release": "node scripts/package-plugin.mjs"
   },
-  "keywords": ["obsidian", "agent", "research", "gemini", "agnes"],
+  "keywords": [
+    "obsidian",
+    "agent",
+    "research",
+    "gemini",
+    "agnes"
+  ],
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^9.39.4",

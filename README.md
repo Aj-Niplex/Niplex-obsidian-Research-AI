@@ -22,7 +22,7 @@ It reads metadata, searches narrowly, opens line windows, and follows relevant l
 | Local chat history | Every user turn is saved as readable Markdown under `NIPLEX-OBSIDIAN/Chats/`. The reverse-clock history control opens local search, reopen, and delete actions. |
 | Research modes | **Plan** and **Chat** are read-only. **Create & edit** is required before a write tool can be considered, and writes still require approval unless a narrow timed policy is explicitly configured. |
 | Quick actions | Users choose up to three icon actions for the left side of the quick bar. The model selector and research-mode selector remain directly beside them. |
-| AI-discovered MOCs | Creates category notes with descriptions, supports multi-category membership, and writes a super-MOC under `NIPLEX-OBSIDIAN/MOCs/`. Runs checkpoint and resume instead of looking frozen during long mobile work. |
+| AI-discovered MOCs | Creates category notes with short summaries, supports multi-category membership, and writes a super-MOC under `NIPLEX-OBSIDIAN/MOCs/`. Runs checkpoint and resume instead of looking frozen during long mobile work. |
 | Skills | The optional helper installs only reviewed, instruction-only packages after code lookup, digest verification, preview, and explicit approval. |
 
 ## Mobile interaction model
@@ -85,7 +85,7 @@ git clone https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI.git
 cd Niplex-obsidian-Research-AI
 npm install
 npm run build
-# Copy main.js, manifest.json, and styles.css to your vault’s .obsidian/plugins/niplex-agentic-research/
+Copy the three release files into your vault’s `.obsidian/plugins/niplex-agentic-research/` folder.
 ```
 
 For development, clone the repository, install dependencies, and run the local checks:
@@ -131,7 +131,7 @@ The user prompt is additive preference text only. It is capped at 6,000 characte
 
 ## MOCs and long runs
 
-The MOC builder discovers categories from bounded note metadata and excerpts. A note can belong to multiple categories, and every category receives a description. The builder writes category notes and a super-MOC under the configured visible MOC folder. It checkpoints after each note, shows progress, pauses after the current note, and resumes without reprocessing completed notes.
+The MOC builder discovers categories from bounded note metadata and excerpts. A note can belong to multiple categories, and every category receives a short summary. The builder writes category notes and a super-MOC under the configured visible MOC folder. It checkpoints after each note, shows progress, pauses after the current note, and resumes without reprocessing completed notes.
 
 A MOC is a navigation aid, not a whole-vault export. The regular agent still chooses relevant files and reads bounded windows rather than sending every note body in one request.
 
