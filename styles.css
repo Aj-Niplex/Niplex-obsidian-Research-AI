@@ -132,6 +132,20 @@
 .oar-composer-side button svg {
 	width: 1.2rem;
 	height: 1.2rem;
+	flex: 0 0 auto;
+}
+
+.oar-quick-fallback {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.35rem;
+	font-weight: var(--font-weight-semibold, 600);
+	line-height: 1;
+}
+
+.oar-quick-fallback.is-hidden {
+	display: none;
 }
 
 .oar-quick-controls {
@@ -154,6 +168,8 @@
 }
 
 .oar-transcript {
+	display: flex;
+	flex-direction: column;
 	flex: 1 1 auto;
 	min-width: 0;
 	min-height: 0;
@@ -164,7 +180,8 @@
 }
 
 .oar-message {
-	max-width: 100%;
+	width: fit-content;
+	max-width: min(88%, 48rem);
 	margin: var(--size-4-2) 0;
 	padding: var(--size-4-2);
 	border-radius: var(--oar-radius);
@@ -180,14 +197,24 @@
 }
 
 .oar-user {
+	align-self: flex-end;
+	margin-left: auto;
+	border-bottom-right-radius: var(--radius-s, 0.35rem);
 	background: var(--background-secondary);
 }
 
 .oar-assistant {
+	align-self: flex-start;
+	margin-right: auto;
+	border-bottom-left-radius: var(--radius-s, 0.35rem);
 	background: var(--background-primary-alt);
 }
 
 .oar-system {
+	align-self: stretch;
+	width: 100%;
+	max-width: 100%;
+
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
 	border: 1px solid var(--background-modifier-border);
@@ -424,14 +451,29 @@
 
 .oar-composer-actions {
 	display: flex;
+	flex-wrap: wrap;
 	gap: var(--size-4-2);
 	margin-top: var(--size-4-2);
 }
 
 .oar-composer-actions button,
 .oar-continue-button {
-	width: 100%;
+	flex: 1 1 12rem;
+	width: auto;
+	min-width: 0;
 	min-height: 2.6rem;
+}
+
+.oar-chat-moc-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--size-4-1);
+}
+
+.oar-chat-moc-button svg {
+	width: 1.1rem;
+	height: 1.1rem;
 }
 
 .oar-continue-button {
@@ -597,6 +639,61 @@
 }
 
 /* First-run walkthrough */
+.oar-setup-card,
+.oar-companion-card {
+	margin: var(--size-4-3) 0;
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--oar-radius);
+	background: var(--background-secondary);
+}
+
+.oar-setup-card > strong,
+.oar-companion-card > strong {
+	display: block;
+	margin-bottom: var(--size-4-1);
+}
+
+.oar-setup-status {
+	min-height: 2.6rem;
+	padding: var(--size-4-2);
+	border-radius: var(--radius-s, 0.35rem);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	line-height: 1.4;
+}
+
+.oar-setup-progress-button {
+	width: 100%;
+	min-height: 2.6rem;
+	margin-top: var(--size-4-2);
+}
+
+.oar-companion-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-2) 0;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.oar-companion-copy {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.oar-companion-copy p {
+	margin: var(--size-4-1) 0 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.oar-companion-row a {
+	flex: 0 0 auto;
+	color: var(--text-accent);
+	font-size: var(--font-ui-small);
+}
+
 .oar-walkthrough-kicker {
 	margin-bottom: var(--size-4-1);
 	color: var(--interactive-accent);
@@ -1087,6 +1184,15 @@
 		flex: 1 1 0;
 		width: auto;
 		min-width: 0;
+	}
+
+	.oar-companion-row {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.oar-companion-row a {
+		width: 100%;
 	}
 }
 

@@ -144,6 +144,13 @@ export class AgentView extends ItemView {
 			this.inputEl.dispatchEvent(new Event("input"));
 			void this.submit();
 		});
+		const mocButton = composerActions.createEl("button", {
+			cls: "oar-chat-moc-button",
+			attr: { "aria-label": "Create or adjust maps of content", title: "Create or adjust maps of content", type: "button" },
+		});
+		setIcon(mocButton, "map");
+		mocButton.createSpan({ text: "MOC builder" });
+		mocButton.addEventListener("click", () => new MocModal(this.app, this.host, () => undefined).open());
 		this.inputEl.addEventListener("keydown", (event) => {
 			if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
 				event.preventDefault();
@@ -156,13 +163,13 @@ export class AgentView extends ItemView {
 		if (!this.quickBarEl) return;
 		this.quickBarEl.empty();
 		const quickButtons = this.quickBarEl.createDiv({ cls: "oar-quick-buttons" });
-		const labels: Record<QuickActionId, { label: string; icon: string }> = {
-			attach: { label: "Add files or folder", icon: "paperclip" },
-			moc: { label: "Open MOC builder", icon: "map" },
-			continue: { label: "Continue research", icon: "rotate-ccw" },
-			history: { label: "Open saved chat history", icon: "history" },
-			prompts: { label: "View prompts", icon: "scroll-text" },
-			logs: { label: "Open logs", icon: "activity" },
+		const labels: Record<QuickActionId, { label: string; icon: string; fallback: string }> = {
+			attach: { label: "Add files or folder", icon: "paperclip", fallback: "+" },
+			moc: { label: "Open MOC builder", icon: "map", fallback: "⌖" },
+			continue: { label: "Continue research", icon: "rotate-ccw", fallback: "↻" },
+			history: { label: "Open saved chat history", icon: "history", fallback: "↶" },
+			prompts: { label: "View prompts", icon: "scroll-text", fallback: "▤" },
+			logs: { label: "Open logs", icon: "activity", fallback: "≋" },
 		};
 		for (const action of this.host.settings.quickActions.slice(0, 3)) {
 			const definition = labels[action];
@@ -172,6 +179,8 @@ export class AgentView extends ItemView {
 				attr: { "aria-label": definition.label, title: definition.label, type: "button" },
 			});
 			setIcon(button, definition.icon);
+			const fallback = button.createSpan({ cls: "oar-quick-fallback", text: definition.fallback, attr: { "aria-hidden": "true" } });
+			if (button.querySelector("svg > *")) fallback.addClass("is-hidden");
 			button.addEventListener("click", () => void this.runQuickAction(action));
 		}
 

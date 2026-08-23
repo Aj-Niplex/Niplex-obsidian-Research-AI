@@ -10,6 +10,7 @@ import { GeminiProvider } from "./providers/gemini";
 import { AgenticResearchSettingTab, type SettingsHost } from "./settings";
 import { ApprovalModal } from "./ui/approval-modal";
 import { AGENT_VIEW_TYPE, AgentView, type AgentViewHost } from "./ui/agent-view";
+import { MocModal } from "./ui/moc-modal";
 import { WALKTHROUGH_VERSION, WalkthroughModal } from "./ui/walkthrough-modal";
 import { DiagnosticsModal } from "./ui/diagnostics-modal";
 import { PromptModal } from "./ui/prompt-modal";
@@ -105,6 +106,14 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 
 	openWalkthrough(): void {
 		new WalkthroughModal(this.app, this).open();
+	}
+
+	openMocBuilder(): void {
+		new MocModal(this.app, this, () => undefined).open();
+	}
+
+	isCompanionInstalled(pluginId: string): boolean {
+		return Boolean(this.app.vault.getAbstractFileByPath(`.obsidian/plugins/${pluginId}/manifest.json`));
 	}
 
 	openDiagnostics(): void {
