@@ -254,3 +254,177 @@
 	max-width: 100%;
 	overflow-x: auto;
 }
+
+/* Theme-safe typography and mobile interaction polish. */
+.oar-view,
+.oar-moc-modal {
+	font-family: var(--font-interface, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+.oar-view *,
+.oar-moc-modal * {
+	box-sizing: border-box;
+}
+
+.oar-view button,
+.oar-moc-modal button,
+.oar-view select,
+.oar-moc-modal input {
+	font: inherit;
+}
+
+.oar-header {
+	padding-bottom: var(--size-4-2);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.oar-header h2 {
+	font-family: var(--font-interface, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+	font-weight: var(--font-weight-semibold, 600);
+	letter-spacing: -0.01em;
+}
+
+.oar-scope {
+	margin-top: var(--size-4-1);
+	padding: var(--size-4-1) var(--size-4-2);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	word-break: break-word;
+}
+
+.oar-message,
+.oar-step,
+.oar-busy,
+.oar-moc-explanation,
+.oar-moc-status {
+	font-family: var(--font-text, var(--font-interface, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif));
+}
+
+.oar-message {
+	line-height: var(--line-height-normal, 1.5);
+}
+
+.oar-message h1,
+.oar-message h2,
+.oar-message h3,
+.oar-message h4 {
+	font-family: var(--font-text, var(--font-interface, sans-serif));
+	line-height: 1.25;
+}
+
+.oar-message code,
+.oar-message pre,
+.oar-tool-preview {
+	font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+}
+
+.oar-moc-body {
+	padding-top: var(--size-4-2);
+}
+
+.oar-moc-explanation {
+	margin: var(--size-4-3) 0;
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+}
+
+.oar-moc-explanation strong {
+	display: block;
+	margin-bottom: var(--size-4-1);
+	color: var(--text-normal);
+}
+
+.oar-moc-explanation p {
+	margin: 0;
+}
+
+.oar-moc-progress {
+	display: block;
+	width: 100%;
+	height: 0.55rem;
+	margin: var(--size-4-3) 0 var(--size-4-2);
+	accent-color: var(--interactive-accent);
+}
+
+.oar-moc-status {
+	min-height: 2.8rem;
+	padding: var(--size-4-2);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+	line-height: 1.35;
+	word-break: break-word;
+}
+
+.oar-moc-modal .mod-cta {
+	width: 100%;
+	min-height: 2.75rem;
+	margin-top: var(--size-4-2);
+}
+
+@media (max-width: 600px) {
+	.oar-view {
+		padding: max(var(--size-4-2), env(safe-area-inset-top)) max(var(--size-4-2), env(safe-area-inset-right)) max(var(--size-4-2), env(safe-area-inset-bottom)) max(var(--size-4-2), env(safe-area-inset-left));
+	}
+
+	.oar-toolbar {
+		align-items: stretch;
+	}
+
+	.oar-toolbar button,
+	.oar-toolbar select {
+		min-height: 2.5rem;
+	}
+
+	.oar-chat-select,
+	.oar-model-select {
+		width: 100%;
+		max-width: none;
+	}
+
+	.oar-moc-modal {
+		padding-bottom: env(safe-area-inset-bottom);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.oar-spinner,
+	.oar-step.is-running .oar-step-summary::after {
+		animation: none;
+	}
+}
+
+.oar-moc-tree {
+	margin: 0 0 var(--size-4-3);
+	padding: var(--size-4-2);
+	overflow-x: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary-alt);
+	color: var(--text-muted);
+	font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.45;
+}
+
+.oar-moc-modal .is-loading {
+	cursor: wait;
+	opacity: 0.78;
+}
+
+.oar-moc-modal .setting-item {
+	padding: var(--size-4-2) 0;
+}
+
+.oar-moc-modal .setting-item-control input {
+	min-height: 2.4rem;
+}

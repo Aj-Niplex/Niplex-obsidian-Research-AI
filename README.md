@@ -14,7 +14,7 @@
 | Visible progress | Immediate loading indicator plus compact, expandable step cards with bounded previews |
 | Markdown answers | Assistant responses use Obsidian’s Markdown renderer; tool payloads stay escaped/preformatted |
 | Saved chats | Save, reopen, continue, and delete conversations from the chat toolbar |
-| MOC scope | Create a link-only map or adjust one with the newest note, then use it as the next research scope |
+| AI-discovered MOCs | Processes notes incrementally, lets each note belong to multiple model-selected categories, writes category descriptions, and creates a `MOCs super.md` recommendation map |
 | Agent tools | `list_files`, `search_vault`, `read_file_chunk`, `create_note`, and `append_note` |
 | Safety | Read-only tools run directly; write tools require approval in a modal |
 | Locality | Vault operations run locally; API calls go directly from Obsidian to the selected provider |
@@ -42,9 +42,15 @@ Open **Settings → Community plugins → Obsidian Agentic Research**. Choose **
 
 The current defaults are `gemini-3.6-flash` for Gemini and `agnes-2.0-flash` for Agnes. Model availability can vary by account and region, so the model fields are editable. The plugin uses Obsidian’s `requestUrl` API for both providers, which avoids browser CORS restrictions and avoids desktop-only Node.js networking assumptions.
 
+## AI-discovered MOCs
+
+The MOC organizer does not dump every note into one request and does not assign every note to one fixed folder. A create run classifies notes one at a time, using frontmatter plus a bounded excerpt, with a default of 12 notes and a hard maximum of 20 per run. The model returns zero to four categories per note, so the same note can appear in multiple category MOCs.
+
+The generated structure is `MOCs/` → model-selected category notes such as `Love.md` or `Goals.md` → `MOCs super.md`. Every category note includes a short description of what belongs inside it, the assignment signals, and wiki-links. The super-MOC contains category descriptions and model-recommended category combinations for questions that cross areas. The adjust flow processes only the most recently edited eligible note and preserves existing category links locally.
+
 ## Bounded vault access
 
-The agent is instructed to begin with `list_files` or `search_vault`. `read_file_chunk` accepts a path, a starting line, and a maximum line count. Its response includes `totalLines`, `hasMore`, and `nextStartLine`, allowing the agent to page through a long note only when required. Tool results are capped again before they are added to the next model request.
+The agent is instructed to begin with the selected `MOCs super.md` when available, or with a focused `search_vault` query. `list_files` now requires a narrow path filter. `read_file_chunk` accepts a path, a starting line, and a maximum line count. Its response includes `totalLines`, `hasMore`, and `nextStartLine`, allowing the agent to page through a long note only when required. Tool results are capped again before they are added to the next model request.
 
 This means the agent can access all relevant files through repeated, targeted operations without requiring the user to paste entire notes or placing complete notes into one outbound request by default. The runtime executes at most one tool call per step and trims older tool turns before another provider request. Write operations are separate tools and are always shown in a confirmation modal.
 
@@ -61,7 +67,8 @@ src/
 ├── core/
 │   ├── agent-runtime.ts      # Provider-neutral tool loop and approval boundary
 │   ├── types.ts              # Shared contracts
-│   └── vault-context.ts      # Bounded vault tools
+│   ├── vault-context.ts      # Bounded vault tools and local MOC writes
+│   └── moc-organizer.ts      # Incremental AI category discovery and super-MOC generation
 ├── providers/
 │   ├── gemini.ts             # Gemini REST adapter
 │   └── agnes.ts              # Agnes OpenAI-compatible adapter
@@ -78,7 +85,7 @@ npm run build
 npm run lint
 ```
 
-The current repository does not require a desktop-only harness. Android and iOS validation should be done by building the bundle, copying it into a test vault, enabling the plugin, entering a provider key, and exercising discovery, bounded reads, and an approved note creation.
+The current repository does not require a desktop-only harness. Android and iOS validation should be done by building the bundle, copying it into a test vault, enabling the plugin, entering a provider key, exercising discovery, and running the MOC organizer with a small note limit. Verify that category notes contain descriptions, that a note may appear in multiple categories, and that `MOCs super.md` links to useful starting sets.
 
 ## Privacy and safety
 

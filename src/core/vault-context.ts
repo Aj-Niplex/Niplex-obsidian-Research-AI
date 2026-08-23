@@ -5,6 +5,15 @@ import type { BoundedReadResult, SearchHit, ToolDefinition, ToolResult } from ".
 const MAX_LIST_RESULTS = 250;
 const MAX_SEARCH_HITS = 40;
 const MAX_SNIPPET_CHARS = 320;
+const MAX_CATEGORIZATION_EXCERPT_CHARS = 1400;
+
+export interface NoteForCategorization {
+	path: string;
+	modified: number;
+	bytes: number;
+	properties: Record<string, unknown>;
+	excerpt: string;
+}
 
 function asString(value: unknown, fallback = ""): string {
 	return typeof value === "string" ? value : fallback;
@@ -118,6 +127,22 @@ export class VaultContext {
 		return { ok: true, content: json({ query, hits, truncated: hits.length >= MAX_SEARCH_HITS }) };
 	}
 
+	async writeGeneratedNote(path: string, content: string, overwrite = false): Promise<ToolResult> {
+		const cleanPath = sanitizeVaultPath(path);
+		if (!cleanPath || !cleanPath.toLowerCase().endsWith(".md")) return { ok: false, isError: true, content: "The generated note path must end with .md." };
+		if (this.isProtected(cleanPath)) return { ok: false, isError: true, content: "That folder is protected." };
+		const existing = this.vault.getAbstractFileByPath(cleanPath);
+		if (existing && !(existing instanceof TFile)) return { ok: false, isError: true, content: `Path is not a Markdown file: ${cleanPath}` };
+		await this.ensureParentFolders(cleanPath);
+		if (existing instanceof TFile) {
+			if (!overwrite) return { ok: false, isError: true, content: `Path already exists: ${cleanPath}` };
+			await this.vault.modify(existing, content);
+			return { ok: true, content: `Updated ${cleanPath}` };
+		}
+		await this.vault.create(cleanPath, content);
+		return { ok: true, content: `Created ${cleanPath}` };
+	}
+
 	async createNote(path: string, content: string): Promise<ToolResult> {
 		const cleanPath = sanitizeVaultPath(path);
 		if (!cleanPath || !cleanPath.toLowerCase().endsWith(".md")) {
@@ -156,6 +181,48 @@ export class VaultContext {
 			.sort((a, b) => b.stat.mtime - a.stat.mtime)
 			.map((file) => file.path)
 			.slice(0, Math.min(Math.max(limit, 1), 25));
+	}
+
+	getMarkdownFilesInFolder(folder: string): string[] {
+		const sanitized = sanitizeVaultPath(folder);
+		if (!sanitized) return [];
+		const cleanFolder = sanitized.replace(/\/+$/g, "");
+		return this.vault
+			.getMarkdownFiles()
+			.filter((file) => !this.isProtected(file.path) && file.path.startsWith(`${cleanFolder}/`))
+			.map((file) => file.path)
+			.sort((a, b) => a.localeCompare(b));
+	}
+
+	async readMarkdownFile(path: string): Promise<string | null> {
+		const cleanPath = sanitizeVaultPath(path);
+		if (!cleanPath || this.isProtected(cleanPath)) return null;
+		const file = this.getMarkdownFile(cleanPath);
+		return file ? this.vault.read(file) : null;
+	}
+
+	async getNotesForCategorization(limit = 12, onlyPath = "", excludedPrefix = "MOCs/"): Promise<NoteForCategorization[]> {
+		const cleanOnlyPath = onlyPath ? sanitizeVaultPath(onlyPath) : "";
+		const candidates = this.vault
+			.getMarkdownFiles()
+			.filter((file) => !this.isProtected(file.path))
+			.filter((file) => !excludedPrefix || !file.path.startsWith(excludedPrefix))
+			.filter((file) => !cleanOnlyPath || file.path === cleanOnlyPath)
+			.sort((a, b) => b.stat.mtime - a.stat.mtime)
+			.slice(0, Math.min(Math.max(Math.floor(limit), 1), 20));
+		const notes: NoteForCategorization[] = [];
+		for (const file of candidates) {
+			const text = await this.vault.read(file);
+			const properties = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+			notes.push({
+				path: file.path,
+				modified: file.stat.mtime,
+				bytes: file.stat.size,
+				properties: { ...properties },
+				excerpt: text.slice(0, MAX_CATEGORIZATION_EXCERPT_CHARS),
+			});
+		}
+		return notes;
 	}
 
 	private async ensureParentFolders(path: string): Promise<void> {

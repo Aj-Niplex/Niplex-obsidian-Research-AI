@@ -1,21 +1,35 @@
 import { App, Modal, Notice, Setting } from "obsidian";
-import type { ToolResult } from "../core/types";
+import type { MocBuildResult, MocProgress } from "../core/moc-organizer";
 
 export interface MocHost {
 	settings: { activeMocPath: string };
-	getMocFiles(): string[];
-	getRecentMarkdownFiles(limit?: number): string[];
-	createMoc(path: string): Promise<ToolResult>;
-	adjustMoc(path: string): Promise<ToolResult>;
+	buildMocs(
+		mode: "create" | "adjust",
+		root: string,
+		maxNotes: number,
+		onProgress: (progress: MocProgress) => void,
+		onlyPath?: string,
+	): Promise<MocBuildResult>;
 	setActiveMoc(path: string): Promise<void>;
+}
+
+function rootFromActivePath(path: string): string {
+	const slash = path.lastIndexOf("/");
+	return slash > 0 ? path.slice(0, slash) : "MOCs";
 }
 
 export class MocModal extends Modal {
 	private readonly host: MocHost;
 	private readonly onDone: () => void;
 	private mode: "create" | "adjust" = "create";
-	private pathEl!: HTMLInputElement;
-	private mocSelect!: HTMLSelectElement;
+	private rootEl!: HTMLInputElement;
+	private limitEl!: HTMLInputElement;
+	private statusEl!: HTMLElement;
+	private progressEl!: HTMLProgressElement;
+	private actionButton!: HTMLButtonElement;
+	private createModeButton!: HTMLButtonElement;
+	private adjustModeButton!: HTMLButtonElement;
+	private busy = false;
 
 	constructor(app: App, host: MocHost, onDone: () => void) {
 		super(app);
@@ -27,83 +41,115 @@ export class MocModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("oar-moc-modal");
-		contentEl.createEl("h2", { text: "Map of content" });
+		contentEl.createEl("h2", { text: "Map of content organizer" });
 		contentEl.createEl("p", {
-			text: "Use a link-only map to guide the agent without opening every note.",
+			text: "The model finds useful categories from note properties and a bounded excerpt. Notes may belong to more than one category.",
 			cls: "oar-muted",
 		});
 
 		const mode = contentEl.createDiv({ cls: "oar-moc-mode" });
-		const createButton = mode.createEl("button", { text: "Create new moc" });
-		const adjustButton = mode.createEl("button", { text: "Adjust recent file" });
-		createButton.addEventListener("click", () => {
-			this.mode = "create";
-			this.renderBody();
+		this.createModeButton = mode.createEl("button", { text: "Discover categories" });
+		this.adjustModeButton = mode.createEl("button", { text: "Adjust latest note" });
+		this.createModeButton.addEventListener("click", () => {
+			if (!this.busy) {
+				this.mode = "create";
+				this.renderBody();
+			}
 		});
-		adjustButton.addEventListener("click", () => {
-			this.mode = "adjust";
-			this.renderBody();
+		this.adjustModeButton.addEventListener("click", () => {
+			if (!this.busy) {
+				this.mode = "adjust";
+				this.renderBody();
+			}
 		});
 		this.renderBody();
 	}
 
 	private renderBody(): void {
-		const existing = this.contentEl.querySelector(".oar-moc-body");
-		existing?.remove();
+		this.contentEl.querySelector(".oar-moc-body")?.remove();
+		this.createModeButton.toggleClass("mod-cta", this.mode === "create");
+		this.adjustModeButton.toggleClass("mod-cta", this.mode === "adjust");
 		const body = this.contentEl.createDiv({ cls: "oar-moc-body" });
-		if (this.mode === "create") {
-			new Setting(body)
-				.setName("New moc path")
-				.setDesc("Only note links and file metadata are used; note bodies are not copied.")
-				.addText((text) => {
-					this.pathEl = text.inputEl;
-					text.setValue("MOCs/Vault Map.md");
-				});
-			const active = body.createEl("p", { cls: "oar-muted" });
-			active.textContent = this.host.settings.activeMocPath ? `Current scope: ${this.host.settings.activeMocPath}` : "No MOC is currently selected.";
-			const action = body.createEl("button", { text: "Create and use this moc", cls: "mod-cta" });
-			action.addEventListener("click", () => void this.create());
-			return;
-		}
-
-		const mocs = this.host.getMocFiles();
-		if (mocs.length === 0) {
-			body.createEl("p", { text: "No moc-like Markdown files were found. Create one first." });
-			return;
-		}
 		new Setting(body)
-			.setName("Moc to adjust")
-			.setDesc("The newest eligible Markdown note will be added as a link only.")
-			.addDropdown((dropdown) => {
-				this.mocSelect = dropdown.selectEl;
-				dropdown.addOptions(Object.fromEntries(mocs.map((path) => [path, path])));
-				dropdown.setValue(this.host.settings.activeMocPath && mocs.includes(this.host.settings.activeMocPath) ? this.host.settings.activeMocPath : mocs[0] ?? "");
+			.setName("Map folder")
+			.setDesc("Generated category notes and the super-map are kept under this vault-relative folder.")
+			.addText((text) => {
+				this.rootEl = text.inputEl;
+				text.setValue(rootFromActivePath(this.host.settings.activeMocPath));
+				text.setDisabled(this.busy);
 			});
-		const recent = this.host.getRecentMarkdownFiles(3);
-		body.createEl("p", { text: recent.length ? `Recent candidates: ${recent.join(", ")}` : "No recent Markdown notes found.", cls: "oar-muted" });
-		const action = body.createEl("button", { text: "Adjust and use this moc", cls: "mod-cta" });
-		action.addEventListener("click", () => void this.adjust());
+		new Setting(body)
+			.setName("Notes per run")
+			.setDesc(this.mode === "create" ? "Each note is sent separately with a bounded excerpt. Maximum 20 per run." : "Adjust processes only the most recently edited eligible note.")
+			.addText((text) => {
+				this.limitEl = text.inputEl;
+				text.inputEl.type = "number";
+				text.inputEl.min = "1";
+				text.inputEl.max = "20";
+				text.setValue(this.mode === "create" ? "12" : "1");
+				text.setDisabled(this.mode === "adjust" || this.busy);
+			});
+
+		const explanation = body.createDiv({ cls: "oar-moc-explanation" });
+		explanation.createEl("strong", { text: "Output structure" });
+		explanation.createEl("p", { text: "Mocs/ → model-selected category notes → mocs super.md. Each category explains what belongs inside it, and the super-map recommends category combinations for better answers." });
+		const tree = body.createEl("pre", { cls: "oar-moc-tree" });
+		tree.textContent = `${this.rootEl?.value.trim() || "MOCs"}/\n├── <model-selected category>.md\n├── <another category>.md\n└── MOCs super.md`;
+
+		this.progressEl = body.createEl("progress", { cls: "oar-moc-progress" });
+		this.progressEl.max = 1;
+		this.progressEl.value = 0;
+		this.statusEl = body.createDiv({ cls: "oar-moc-status oar-muted", text: this.mode === "create" ? "Ready to discover categories." : "Ready to adjust the latest edited note." });
+		this.actionButton = body.createEl("button", {
+			text: this.mode === "create" ? "Discover categories incrementally" : "Adjust with latest note",
+			cls: "mod-cta",
+		});
+		this.actionButton.addEventListener("click", () => void this.run());
 	}
 
-	private async create(): Promise<void> {
-		const path = this.pathEl?.value.trim() ?? "";
-		const result = await this.host.createMoc(path);
-		void this.finish(result, result.ok ? path : "");
-	}
-
-	private async adjust(): Promise<void> {
-		const path = this.mocSelect?.value ?? "";
-		const result = await this.host.adjustMoc(path);
-		void this.finish(result, result.ok ? path : "");
-	}
-
-	private async finish(result: ToolResult, activePath: string): Promise<void> {
-		new Notice(result.content);
-		if (result.ok && activePath) {
-			await this.host.setActiveMoc(activePath);
-			this.onDone();
-			this.close();
+	private async run(): Promise<void> {
+		if (this.busy) return;
+		const root = this.rootEl?.value.trim() || "MOCs";
+		const parsedLimit = Number.parseInt(this.limitEl?.value ?? "12", 10);
+		const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 20) : 12;
+		this.busy = true;
+		this.actionButton.addClass("is-loading");
+		this.actionButton.textContent = this.mode === "create" ? "Discovering categories…" : "Adjusting latest note…";
+		this.actionButton.disabled = true;
+		this.createModeButton.disabled = true;
+		this.adjustModeButton.disabled = true;
+		this.progressEl.value = 0;
+		this.statusEl.textContent = this.mode === "create" ? "Starting one-note-at-a-time discovery…" : "Finding the latest edited note…";
+		try {
+			const result = await this.host.buildMocs(this.mode, root, limit, (progress) => this.showProgress(progress));
+			this.showResult(result);
+			if (result.ok) {
+				await this.host.setActiveMoc(result.superPath);
+				this.onDone();
+				this.close();
+			}
+		} catch (error) {
+			this.statusEl.textContent = error instanceof Error ? error.message : "MOC generation failed.";
+			new Notice(this.statusEl.textContent);
+		} finally {
+			this.busy = false;
+			this.actionButton.removeClass("is-loading");
+			this.actionButton.textContent = this.mode === "create" ? "Discover categories incrementally" : "Adjust with latest note";
+			this.actionButton.disabled = false;
+			this.createModeButton.disabled = false;
+			this.adjustModeButton.disabled = false;
 		}
+	}
+
+	private showProgress(progress: MocProgress): void {
+		this.progressEl.max = Math.max(progress.total, 1);
+		this.progressEl.value = Math.min(progress.current, progress.total);
+		this.statusEl.textContent = progress.path ? `${progress.message} · ${progress.path}` : progress.message;
+	}
+
+	private showResult(result: MocBuildResult): void {
+		this.statusEl.textContent = result.content;
+		new Notice(result.content);
 	}
 
 	onClose(): void {

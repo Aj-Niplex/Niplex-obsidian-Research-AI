@@ -2,6 +2,7 @@ import { Notice, Platform, Plugin, WorkspaceLeaf } from "obsidian";
 import { AgentRuntime, type AgentEvent, type AgentRunResult } from "./core/agent-runtime";
 import { DEFAULT_SETTINGS, type AgentSettings, type ChatMessage, type SavedChat, type ToolCall, type ToolDefinition, type ToolResult } from "./core/types";
 import { VaultContext } from "./core/vault-context";
+import { MocOrganizer, type MocProgress } from "./core/moc-organizer";
 import { AgnesProvider } from "./providers/agnes";
 import { GeminiProvider } from "./providers/gemini";
 import { AgenticResearchSettingTab, type SettingsHost } from "./settings";
@@ -156,6 +157,11 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	async setActiveMoc(path: string): Promise<void> {
 		this.settings.activeMocPath = path;
 		await this.saveSettings();
+	}
+
+	async buildMocs(mode: "create" | "adjust", root: string, maxNotes: number, onProgress: (progress: MocProgress) => void, onlyPath = "") {
+		const model = this.settings.provider === "gemini" ? this.settings.geminiModel : this.settings.agnesModel;
+		return new MocOrganizer(this.getProvider(), model, this.createVaultContext()).build(mode, root, maxNotes, onProgress, onlyPath);
 	}
 
 	private approveWrite(tool: ToolDefinition, call: ToolCall): Promise<boolean> {
