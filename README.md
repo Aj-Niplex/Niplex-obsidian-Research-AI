@@ -15,13 +15,13 @@
 | Markdown answers | Assistant responses use Obsidian’s Markdown renderer; tool payloads stay escaped/preformatted |
 | Saved chats | Save, search, reopen, continue, and delete conversations from the chat toolbar; saved Markdown lives in the vault |
 | Explicit attachments | Select up to eight Markdown paths beside the super-MOC; only bounded windows are read at run time |
-| Transparent prompts | Read-only built-in Aj-Niplex/Niplex policy plus an additive user prompt; historical system messages are removed before each run |
+| Transparent prompts | Read-only built-in Aj-Niplex/Niplex policy plus an additive user prompt; historical system messages are removed before each run; custom prompt capped at 6,000 characters (about 1,500 tokens) |
 | Approval policy | Always ask by default, or an explicitly configured 5–60 minute path/tool-scoped window; mismatches still open confirmation |
 | AI-discovered MOCs | Processes eligible notes sequentially with bounded per-note context, lets each note belong to multiple model-selected categories, writes category descriptions, and creates a `MOCs super.md` recommendation map |
 | Agent tools | `list_files`, `search_vault`, `read_file_chunk`, `create_note`, and `append_note` |
 | Safety | Read-only tools run directly; write tools require approval in a modal or a narrowly scoped user-configured window |
 | Locality | Vault operations run locally; API calls go directly from Obsidian to the selected provider; user AI data is visible under `NIPLEX-OBSIDIAN/` |
-| Skills | Optional separate `Niplex Obsidian Helper` plugin looks up five-character codes from the private instruction-only skills catalogue and installs only after preview/approval |
+| Skills | Optional separate `Niplex Obsidian Helper` plugin looks up five-character codes from the public-for-preview Niplex catalogue and installs only after preview/approval; the vendored Hermes source tree is local reference material, not a live dependency |
 | Extensibility | Provider-neutral runtime and a documented path for a future streamable-HTTP MCP client |
 
 ## Installation for development
@@ -111,7 +111,7 @@ The current repository does not require a desktop-only harness. Android and iOS 
 
 ## Privacy and safety
 
-The plugin sends the user prompt, a bounded super-MOC snapshot when available, explicitly selected attachment snapshots, bounded tool results, and selected tool-call messages to the configured provider. It does not upload the vault for indexing or send all note bodies in one request. Saved chats contain the bounded conversation history intentionally retained by the user and never contain API keys. The MOC feature uses note metadata, bounded excerpts, and wiki-links; it does not copy every note body. Redacted local diagnostics can be shared from settings or the command palette; they contain provider/model events and short error summaries, not keys, prompts, responses, or note excerpts. The plugin does not implement background scheduling or automatic vault hooks yet. API keys must never be committed to the repository, screenshots, issue descriptions, or chat transcripts. Additional AI services may be used separately during development for code, research, and UI critique, but they are not embedded in the shipped plugin or given vault access by default.
+The plugin sends the user prompt, a bounded super-MOC snapshot when available, explicitly selected attachment snapshots, bounded tool results, and selected tool-call messages to the configured provider. A shared runtime budget caps injected context at 20,000 characters, provider message history at 32,000 characters, and installed skill guidance at 6,000 characters; the custom system prompt is capped at 6,000 characters. It does not upload the vault for indexing or send all note bodies in one request. Saved chats contain the bounded conversation history intentionally retained by the user and never contain API keys. The MOC feature uses note metadata, bounded excerpts, and wiki-links; it does not copy every note body. Redacted local diagnostics can be shared from settings or the command palette; they contain provider/model events and short error summaries, not keys, prompts, responses, or note excerpts. The plugin does not implement background scheduling or automatic vault hooks yet. API keys must never be committed to the repository, screenshots, issue descriptions, or chat transcripts. Additional AI services may be used separately during development for code, research, and UI critique, but they are not embedded in the shipped plugin or given vault access by default.
 
 ## References
 

@@ -992,3 +992,208 @@
 		animation: none;
 	}
 }
+
+/* Readable showcase panes and calm mobile controls. */
+.oar-prompt-modal {
+	width: min(42rem, 94vw);
+	max-width: 100%;
+	max-height: 90vh;
+	overflow-y: auto;
+	padding-bottom: max(var(--size-4-3), env(safe-area-inset-bottom));
+}
+
+.oar-prompt-modal h3 {
+	margin-top: var(--size-4-4);
+}
+
+.oar-prompt-readonly,
+.oar-prompt-editor {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace) !important;
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+	white-space: pre-wrap;
+	resize: vertical;
+}
+
+.oar-prompt-readonly {
+	min-height: min(26rem, 46vh);
+	max-height: 52vh;
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	cursor: default;
+}
+
+.oar-prompt-editor {
+	min-height: 10rem;
+	max-height: 32vh;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.oar-prompt-note,
+.oar-prompt-counter {
+	margin-top: var(--size-4-1);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.oar-prompt-counter.is-near-limit {
+	color: var(--text-error);
+}
+
+.oar-prompt-modal .oar-modal-actions {
+	position: sticky;
+	bottom: 0;
+	padding-top: var(--size-4-3);
+	background: var(--background-primary);
+}
+
+.oar-action-sheet {
+	max-height: min(78vh, 48rem);
+}
+
+.oar-action-primary .oar-action-card,
+.oar-action-disclosure-body .oar-action-card {
+	width: 100%;
+	margin-bottom: var(--size-4-2);
+}
+
+.oar-action-disclosure {
+	margin-top: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.oar-action-disclosure summary {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	padding: var(--size-4-3);
+	cursor: pointer;
+	list-style-position: inside;
+}
+
+.oar-action-disclosure summary small {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.oar-action-disclosure-body {
+	padding: 0 var(--size-4-3) var(--size-4-3);
+}
+
+.oar-action-disclosure-body .oar-action-button-grid {
+	grid-template-columns: 1fr;
+}
+
+.oar-action-disclosure-body .oar-action-select {
+	margin-bottom: var(--size-4-2);
+}
+
+@media (max-width: 600px) {
+	.oar-view {
+		padding: var(--size-4-2) max(var(--size-4-2), env(safe-area-inset-right)) max(var(--size-4-2), env(safe-area-inset-bottom)) max(var(--size-4-2), env(safe-area-inset-left));
+	}
+
+	.oar-header {
+		flex: 0 0 auto;
+	}
+
+	.oar-header h2 {
+		font-size: var(--font-ui-large);
+	}
+
+	.oar-header p {
+		max-width: 34rem;
+		margin: var(--size-4-1) 0;
+	}
+
+	.oar-transcript {
+		min-height: 10rem;
+		padding-bottom: var(--size-4-2);
+	}
+
+	.oar-composer {
+		flex: 0 0 auto;
+		margin-top: var(--size-4-1);
+		padding: var(--size-4-2);
+	}
+
+	.oar-composer textarea {
+		min-height: 3.5rem;
+		max-height: 8rem;
+	}
+
+	.oar-composer-actions {
+		flex-direction: row;
+	}
+
+	.oar-composer-actions button {
+		flex: 1 1 0;
+		width: auto;
+		min-width: 0;
+	}
+
+	.oar-action-sheet-modal {
+		max-height: 82vh;
+	}
+
+	.oar-prompt-modal {
+		width: 100%;
+		max-height: 90vh;
+	}
+
+	.oar-prompt-readonly {
+		min-height: 15rem;
+		max-height: 48vh;
+	}
+
+	.oar-prompt-editor {
+		min-height: 8rem;
+		max-height: 28vh;
+	}
+
+	.oar-prompt-modal .oar-modal-actions {
+		flex-direction: row;
+	}
+
+	.oar-prompt-modal .oar-modal-actions button {
+		flex: 1 1 0;
+		width: auto;
+		min-width: 0;
+	}
+}
+
+.oar-query-counter {
+	margin: calc(var(--size-4-1) * -1) 0 var(--size-4-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	text-align: right;
+}
+
+@media (max-width: 600px) {
+	.oar-query-counter {
+		margin-bottom: var(--size-4-1);
+	}
+}
+
+.oar-prompt-badge {
+	display: inline-flex;
+	align-items: center;
+	min-height: 2rem;
+	margin: var(--size-4-2) 0;
+	padding: var(--size-4-1) var(--size-4-2);
+	border: 1px solid var(--interactive-accent);
+	border-radius: 999px;
+	color: var(--interactive-accent);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-weight-medium, 500);
+}

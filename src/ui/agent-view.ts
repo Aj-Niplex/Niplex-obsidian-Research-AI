@@ -1,6 +1,7 @@
 import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from "obsidian";
 import type { AgentEvent, AgentRunResult } from "../core/agent-runtime";
 import type { AgentSettings, ChatMessage, ProviderId, ProviderModel, SavedChat } from "../core/types";
+import { CONTEXT_BUDGETS } from "../core/context-budget";
 import { MocModal, type MocHost } from "./moc-modal";
 import { FilePickerModal, type FilePickerHost } from "./file-picker-modal";
 import { ActionSheetModal, type ActionSheetHost } from "./action-sheet-modal";
@@ -74,8 +75,14 @@ export class AgentView extends ItemView {
 			const composer = root.createDiv({ cls: "oar-composer" });
 			composer.createDiv({ cls: "oar-composer-hint", text: "Ask one focused question. Add context only when you need it." });
 			this.inputEl = composer.createEl("textarea", {
-				attr: { rows: "4", placeholder: "Ask the agent to research your vault…" },
+				attr: { rows: "4", maxlength: String(CONTEXT_BUDGETS.maxUserPromptChars), placeholder: "Ask the agent to research your vault…" },
 			});
+			const queryCounter = composer.createDiv({ cls: "oar-query-counter", attr: { "aria-live": "polite" } });
+			const updateQueryCounter = () => {
+				queryCounter.textContent = `${this.inputEl.value.length.toLocaleString()} / ${CONTEXT_BUDGETS.maxUserPromptChars.toLocaleString()} characters`;
+			};
+			this.inputEl.addEventListener("input", updateQueryCounter);
+			updateQueryCounter();
 			this.attachmentListEl = composer.createDiv({ cls: "oar-attachment-list" });
 			this.attachButton = composer.createEl("button", { text: "Attach files", cls: "oar-attach-button" });
 			this.attachButton.addEventListener("click", () => this.openFilePicker());
@@ -189,7 +196,7 @@ export class AgentView extends ItemView {
 		this.attachmentListEl.empty();
 		const attachments = this.currentChat.attachments ?? [];
 		if (!attachments.length) {
-			this.attachmentListEl.createSpan({ text: "No explicit files attached; the agent will use bounded tools and super-MOC context.", cls: "oar-muted" });
+			this.attachmentListEl.createSpan({ text: "No files attached · bounded vault context only", cls: "oar-muted" });
 			return;
 		}
 		this.attachmentListEl.createSpan({ text: "Attached for next run:", cls: "oar-attachment-label" });

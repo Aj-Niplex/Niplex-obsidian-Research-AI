@@ -25,7 +25,6 @@ export class ActionSheetModal extends Modal {
 	private readonly host: ActionSheetHost;
 	private chatSearchEl!: HTMLInputElement;
 	private chatSelectEl!: HTMLSelectElement;
-	private providerSelectEl!: HTMLSelectElement;
 	private modelSelectEl!: HTMLSelectElement;
 	private deleteButton!: HTMLButtonElement;
 
@@ -39,23 +38,20 @@ export class ActionSheetModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("oar-action-sheet");
-
-		const handle = contentEl.createDiv({ cls: "oar-action-sheet-handle", attr: { "aria-hidden": "true" } });
-		handle.setAttribute("role", "presentation");
+		contentEl.createDiv({ cls: "oar-action-sheet-handle", attr: { "aria-hidden": "true" } });
 		contentEl.createEl("h2", { text: "Research actions" });
-		contentEl.createEl("p", { text: "Keep the workspace focused. Open tools only when you need them.", cls: "oar-muted" });
+		contentEl.createEl("p", { text: "Start with context. Open the less-used controls only when needed.", cls: "oar-muted" });
 
-		this.addSection(contentEl, "Add to research", [
-			["Attach files", "Choose specific Markdown files. Only bounded context is sent.", () => this.host.onAttachFiles()],
-			["Open MOC builder", "Create or adjust your vault map.", () => this.host.onOpenMoc()],
-			["Continue research", "Resume from the existing bounded evidence.", () => this.host.onContinue()],
-		]);
+		const primary = contentEl.createDiv({ cls: "oar-action-section oar-action-primary" });
+		primary.createEl("h3", { text: "Add to this research" });
+		this.addActionCard(primary, "Attach files", "Select up to eight Markdown files. Only bounded windows are read.", () => this.host.onAttachFiles());
+		this.addActionCard(primary, "Open MOC builder", "Create or adjust the map used to navigate your vault.", () => this.host.onOpenMoc());
+		this.addActionCard(primary, "Continue research", "Resume from the last bounded run when it paused.", () => this.host.onContinue());
 
-		const chatSection = contentEl.createDiv({ cls: "oar-action-section" });
-		chatSection.createEl("h3", { text: "Chat" });
-		this.chatSearchEl = chatSection.createEl("input", { type: "search", placeholder: "Search saved chats…", cls: "oar-action-search", attr: { "aria-label": "Search saved chats" } });
+		const chat = this.addDisclosure(contentEl, "Chat history", "Search, switch, save, or delete local chats.");
+		this.chatSearchEl = chat.createEl("input", { type: "search", placeholder: "Search saved chats…", cls: "oar-action-search", attr: { "aria-label": "Search saved chats" } });
 		this.chatSearchEl.addEventListener("input", () => this.refreshChats());
-		this.chatSelectEl = chatSection.createEl("select", { cls: "oar-action-select", attr: { "aria-label": "Saved chat" } });
+		this.chatSelectEl = chat.createEl("select", { cls: "oar-action-select", attr: { "aria-label": "Saved chat" } });
 		this.chatSelectEl.addEventListener("change", () => {
 			const id = this.chatSelectEl.value;
 			if (id && id !== this.host.currentChat.id) {
@@ -63,43 +59,43 @@ export class ActionSheetModal extends Modal {
 				this.close();
 			}
 		});
-		const chatActions = chatSection.createDiv({ cls: "oar-action-button-grid" });
-		this.addButton(chatActions, "New chat", () => { this.host.onNewChat(); this.close(); });
-		this.addButton(chatActions, "Save current", () => void this.host.onSaveChat());
-		this.deleteButton = this.addButton(chatActions, "Delete current", () => void this.host.onDeleteChat());
+		const chatActions = chat.createDiv({ cls: "oar-action-button-grid" });
+		this.addButton(chatActions, "New chat", () => this.host.onNewChat());
+		this.addButton(chatActions, "Save current", () => this.host.onSaveChat());
+		this.deleteButton = this.addButton(chatActions, "Delete current", () => this.host.onDeleteChat());
 		this.refreshChats();
 
-		const providerSection = contentEl.createDiv({ cls: "oar-action-section" });
-		providerSection.createEl("h3", { text: "Provider and model" });
-		const providerRow = providerSection.createDiv({ cls: "oar-action-control-row" });
-		this.providerSelectEl = providerRow.createEl("select", { cls: "oar-action-select", attr: { "aria-label": "Provider" } });
-		this.providerSelectEl.add(new Option("Google Gemini", "gemini"));
-		this.providerSelectEl.add(new Option("Agnes AI", "agnes"));
-		this.providerSelectEl.value = this.host.settings.provider;
-		this.providerSelectEl.addEventListener("change", () => void this.changeProvider(this.providerSelectEl.value as ProviderId));
-		this.modelSelectEl = providerRow.createEl("select", { cls: "oar-action-select", attr: { "aria-label": "Model" } });
+		const provider = this.addDisclosure(contentEl, "Provider and model", "Change the provider or account-accessible model used on the next turn.");
+		const providerSelect = provider.createEl("select", { cls: "oar-action-select", attr: { "aria-label": "Provider" } });
+		providerSelect.add(new Option("Google Gemini", "gemini"));
+		providerSelect.add(new Option("Agnes AI", "agnes"));
+		providerSelect.value = this.host.settings.provider;
+		providerSelect.addEventListener("change", () => void this.changeProvider(providerSelect.value as ProviderId));
+		this.modelSelectEl = provider.createEl("select", { cls: "oar-action-select", attr: { "aria-label": "Model" } });
 		this.modelSelectEl.addEventListener("change", () => void this.host.onModelChange(this.modelSelectEl.value));
 		void this.refreshModels();
 
-		this.addSection(contentEl, "More", [
-			["View prompts", "See the protected policy and additive user prompt.", () => this.host.onOpenPrompts()],
-			["Open logs", "Review redacted diagnostics.", () => this.host.onOpenLogs()],
-		]);
+		const more = this.addDisclosure(contentEl, "More tools", "View transparent prompts or open redacted diagnostics.");
+		this.addActionCard(more, "View prompts", "Read the protected policy and edit only the additive prompt.", () => this.host.onOpenPrompts());
+		this.addActionCard(more, "Open logs", "Review local redacted diagnostics.", () => this.host.onOpenLogs());
 	}
 
-	private addSection(root: HTMLElement, title: string, actions: Array<[string, string, () => void]>): void {
-		const section = root.createDiv({ cls: "oar-action-section" });
-		section.createEl("h3", { text: title });
-		const grid = section.createDiv({ cls: "oar-action-button-grid" });
-		for (const [label, description, callback] of actions) {
-			const button = grid.createEl("button", { cls: "oar-action-card" });
-			button.createEl("strong", { text: label });
-			button.createEl("small", { text: description });
-			button.addEventListener("click", () => {
-				callback();
-				this.close();
-			});
-		}
+	private addDisclosure(root: HTMLElement, title: string, description: string): HTMLElement {
+		const details = root.createEl("details", { cls: "oar-action-disclosure" });
+		const summary = details.createEl("summary");
+		summary.createEl("strong", { text: title });
+		summary.createEl("small", { text: description });
+		return details.createDiv({ cls: "oar-action-disclosure-body" });
+	}
+
+	private addActionCard(root: HTMLElement, label: string, description: string, callback: () => void): void {
+		const button = root.createEl("button", { cls: "oar-action-card" });
+		button.createEl("strong", { text: label });
+		button.createEl("small", { text: description });
+		button.addEventListener("click", () => {
+			callback();
+			this.close();
+		});
 	}
 
 	private addButton(root: HTMLElement, label: string, callback: () => void | Promise<void>): HTMLButtonElement {
