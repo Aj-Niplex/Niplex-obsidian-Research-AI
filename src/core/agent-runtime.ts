@@ -1,11 +1,21 @@
 import type { AgentSettings, ChatMessage, ToolCall, ToolDefinition, ToolResult, ProviderAdapter } from "./types";
 import { VaultContext } from "./vault-context";
 
+export type AgentEventPhase = "thinking" | "tool" | "answer" | "error" | "complete";
+
 export interface AgentEvent {
 	type: "status" | "text" | "tool" | "error";
 	message: string;
+	step?: number;
+	phase?: AgentEventPhase;
+	final?: boolean;
 	tool?: ToolCall;
 	result?: ToolResult;
+}
+
+export interface AgentRunResult {
+	text: string;
+	messages: ChatMessage[];
 }
 
 export type ApprovalHandler = (tool: ToolDefinition, call: ToolCall) => Promise<boolean>;
@@ -14,7 +24,7 @@ const MAX_TOOL_CALLS_PER_STEP = 1;
 const MAX_CONTEXT_MESSAGES = 12;
 const SYSTEM_PROMPT = `You are an agentic research assistant operating inside an Obsidian vault.
 Use the vault tools to discover and inspect notes. Never ask for or assume the entire contents of a file in one request.
-Start with list_files or search_vault, then use read_file_chunk with bounded line windows. Continue with nextStartLine only when necessary.
+Start with the selected MOC when one is provided; otherwise use a focused search_vault query. Use list_files only when the user asks for file discovery and always provide a narrow path filter. Then use read_file_chunk with bounded line windows. Continue with nextStartLine only when necessary.
 Execute at most one tool call per step; plan sequentially when more work is needed.
 Return concise, evidence-based answers. When asked to conduct research, distinguish vault evidence from external knowledge and make the next action explicit.
 Writing tools create durable changes and require approval; only use them when the user asks for a note or an append.`;
@@ -23,6 +33,13 @@ function capText(text: string, maxChars: number): string {
 	const limit = Math.max(1, maxChars);
 	if (text.length <= limit) return text;
 	return `${text.slice(0, limit)}\n…[tool result truncated by plugin]`;
+}
+
+function cloneMessage(message: ChatMessage): ChatMessage {
+	return {
+		...message,
+		toolCalls: message.toolCalls?.map((call) => ({ ...call, arguments: { ...call.arguments } })),
+	};
 }
 
 function trimHistory(messages: ChatMessage[]): void {
@@ -53,15 +70,24 @@ export class AgentRuntime {
 		this.tools = vaultContext.getToolDefinitions();
 	}
 
-	async run(prompt: string, approve: ApprovalHandler, emit: (event: AgentEvent) => void): Promise<string> {
-		const messages: ChatMessage[] = [
-			{ role: "system", content: SYSTEM_PROMPT },
-			{ role: "user", content: prompt.trim() },
-		];
+	async run(
+		prompt: string,
+		approve: ApprovalHandler,
+		emit: (event: AgentEvent) => void,
+		history: ChatMessage[] = [],
+	): Promise<AgentRunResult> {
+		const messages: ChatMessage[] = history.length ? history.map(cloneMessage) : [{ role: "system", content: SYSTEM_PROMPT }];
+		if (messages[0]?.role !== "system") messages.unshift({ role: "system", content: SYSTEM_PROMPT });
+		messages.push({ role: "user", content: prompt.trim() });
 		let lastText = "";
 		for (let iteration = 1; iteration <= this.settings.maxIterations; iteration += 1) {
 			trimHistory(messages);
-			emit({ type: "status", message: `Agent step ${iteration}/${this.settings.maxIterations}` });
+			emit({
+				type: "status",
+				phase: "thinking",
+				step: iteration,
+				message: iteration === 1 ? "Thinking about the request…" : "Reviewing the next bounded context…",
+			});
 			let response;
 			try {
 				response = await this.provider.complete({
@@ -71,16 +97,26 @@ export class AgentRuntime {
 				});
 			} catch (error) {
 				const message = `Provider request failed: ${safeError(error)}`;
-				emit({ type: "error", message });
-				return message;
+				emit({ type: "error", phase: "error", step: iteration, message });
+				return { text: message, messages };
 			}
 
+			const calls = response.toolCalls ?? [];
 			if (response.text) {
 				lastText = response.text;
-				emit({ type: "text", message: response.text });
+				emit({
+					type: "text",
+					phase: calls.length === 0 ? "answer" : "thinking",
+					step: iteration,
+					final: calls.length === 0,
+					message: response.text,
+				});
 			}
-			const calls = response.toolCalls ?? [];
-			if (calls.length === 0) return lastText || "The provider returned no text.";
+			if (calls.length === 0) {
+				messages.push({ role: "assistant", content: response.text });
+				emit({ type: "status", phase: "complete", step: iteration, message: "Finished." });
+				return { text: lastText || "The provider returned no text.", messages };
+			}
 
 			messages.push({ role: "assistant", content: response.text, toolCalls: calls });
 			const [call] = calls.slice(0, MAX_TOOL_CALLS_PER_STEP);
@@ -92,7 +128,7 @@ export class AgentRuntime {
 					content: `Only one tool call is executed per step. Please plan sequentially and request ${skippedCall.name} on the following step.`,
 				};
 				messages.push({ role: "tool", content: skipped.content, toolCallId: skippedCall.id, toolName: skippedCall.name });
-				emit({ type: "tool", message: skipped.content, tool: skippedCall, result: skipped });
+				emit({ type: "tool", phase: "tool", step: iteration, message: skipped.content, tool: skippedCall, result: skipped });
 			}
 			if (!call) continue;
 
@@ -100,13 +136,13 @@ export class AgentRuntime {
 			if (!definition) {
 				const unknown: ToolResult = { ok: false, isError: true, content: `Tool is not available: ${call.name}` };
 				messages.push({ role: "tool", content: unknown.content, toolCallId: call.id, toolName: call.name });
-				emit({ type: "tool", message: unknown.content, tool: call, result: unknown });
+				emit({ type: "tool", phase: "tool", step: iteration, message: unknown.content, tool: call, result: unknown });
 				continue;
 			}
 			if (!definition.readOnly && !(await approve(definition, call))) {
 				const denied: ToolResult = { ok: false, isError: true, content: "User denied this write action." };
 				messages.push({ role: "tool", content: denied.content, toolCallId: call.id, toolName: call.name });
-				emit({ type: "tool", message: denied.content, tool: call, result: denied });
+				emit({ type: "tool", phase: "tool", step: iteration, message: denied.content, tool: call, result: denied });
 				continue;
 			}
 
@@ -118,10 +154,10 @@ export class AgentRuntime {
 			}
 			const bounded = { ...result, content: capText(result.content, this.settings.maxToolResultChars) };
 			messages.push({ role: "tool", content: bounded.content, toolCallId: call.id, toolName: call.name });
-			emit({ type: "tool", message: bounded.content, tool: call, result: bounded });
+			emit({ type: "tool", phase: "tool", step: iteration, message: bounded.content, tool: call, result: bounded });
 		}
 		const message = `Stopped after ${this.settings.maxIterations} agent steps. ${lastText || "Ask a follow-up question to continue."}`;
-		emit({ type: "status", message });
-		return message;
+		emit({ type: "status", phase: "complete", message });
+		return { text: message, messages };
 	}
 }

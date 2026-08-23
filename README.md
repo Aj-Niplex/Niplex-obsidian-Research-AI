@@ -9,8 +9,12 @@
 | Capability | Behavior |
 | --- | --- |
 | Mobile support | `isDesktopOnly` is `false`; runtime code avoids Node.js imports and uses Obsidian APIs |
-| Provider choice | Google Gemini or Agnes AI, selected in plugin settings |
+| Provider choice | Google Gemini or Agnes AI, selectable in settings and from the chat toolbar |
 | Bounded context | File metadata, search snippets, and paginated line windows; no default whole-file injection |
+| Visible progress | Immediate loading indicator plus compact, expandable step cards with bounded previews |
+| Markdown answers | Assistant responses use Obsidian’s Markdown renderer; tool payloads stay escaped/preformatted |
+| Saved chats | Save, reopen, continue, and delete conversations from the chat toolbar |
+| MOC scope | Create a link-only map or adjust one with the newest note, then use it as the next research scope |
 | Agent tools | `list_files`, `search_vault`, `read_file_chunk`, `create_note`, and `append_note` |
 | Safety | Read-only tools run directly; write tools require approval in a modal |
 | Locality | Vault operations run locally; API calls go directly from Obsidian to the selected provider |
@@ -62,8 +66,9 @@ src/
 │   ├── gemini.ts             # Gemini REST adapter
 │   └── agnes.ts              # Agnes OpenAI-compatible adapter
 └── ui/
-    ├── agent-view.ts         # Responsive sidebar chat
-    └── approval-modal.ts     # Explicit write approval
+    ├── agent-view.ts         # Responsive sidebar chat, saved chats, steps, and Markdown
+    ├── approval-modal.ts     # Explicit write approval
+    └── moc-modal.ts          # Create or adjust a user-selected MOC
 ```
 
 ## Development checks
@@ -77,7 +82,7 @@ The current repository does not require a desktop-only harness. Android and iOS 
 
 ## Privacy and safety
 
-The plugin sends the user prompt, bounded tool results, and the selected tool-call messages to the configured provider. It does not upload the vault for indexing in this MVP. The plugin does not implement background scheduling or automatic vault hooks yet. API keys must never be committed to the repository, screenshots, issue descriptions, or chat transcripts.
+The plugin sends the user prompt, bounded tool results, and the selected tool-call messages to the configured provider. It does not upload the vault for indexing in this MVP. Saved chats contain the bounded conversation history intentionally retained by the user and never contain API keys. The MOC feature uses note metadata and wiki-links; it does not copy every note body. The plugin does not implement background scheduling or automatic vault hooks yet. API keys must never be committed to the repository, screenshots, issue descriptions, or chat transcripts.
 
 ## References
 

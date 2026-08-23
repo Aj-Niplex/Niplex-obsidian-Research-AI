@@ -10,6 +10,16 @@ export interface ChatMessage {
 	toolCalls?: ToolCall[];
 }
 
+export interface SavedChat {
+	id: string;
+	title: string;
+	createdAt: number;
+	updatedAt: number;
+	provider: ProviderId;
+	model: string;
+	messages: ChatMessage[];
+}
+
 export interface ToolDefinition {
 	name: string;
 	description: string;
@@ -70,6 +80,7 @@ export interface AgentSettings {
 	maxToolResultChars: number;
 	maxReadLines: number;
 	stateFolder: string;
+	activeMocPath: string;
 }
 
 export const DEFAULT_SETTINGS: AgentSettings = {
@@ -80,4 +91,5 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	maxToolResultChars: 12000,
 	maxReadLines: 160,
 	stateFolder: ".obsidian-agentic-research",
+	activeMocPath: "",
 };

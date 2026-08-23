@@ -49,6 +49,7 @@ export class VaultContext {
 
 	async listFiles(query = ""): Promise<ToolResult> {
 		const needle = query.trim().toLowerCase();
+		if (!needle) return { ok: false, isError: true, content: "Provide a narrow path filter; broad vault listing is disabled." };
 		const files = this.vault
 			.getMarkdownFiles()
 			.filter((file) => !this.isProtected(file.path))
@@ -138,15 +139,86 @@ export class VaultContext {
 		return { ok: true, content: `Appended content to ${cleanPath}` };
 	}
 
+	getMocFiles(): string[] {
+		return this.vault
+			.getMarkdownFiles()
+			.filter((file) => !this.isProtected(file.path))
+			.filter((file) => /(^|[\\/_ -])(mocs?|map[- _]of[- _]content)([.\\/_ -]|$)/i.test(file.path))
+			.sort((a, b) => b.stat.mtime - a.stat.mtime)
+			.map((file) => file.path)
+			.slice(0, 50);
+	}
+
+	getRecentMarkdownFiles(limit = 10): string[] {
+		return this.vault
+			.getMarkdownFiles()
+			.filter((file) => !this.isProtected(file.path))
+			.sort((a, b) => b.stat.mtime - a.stat.mtime)
+			.map((file) => file.path)
+			.slice(0, Math.min(Math.max(limit, 1), 25));
+	}
+
+	private async ensureParentFolders(path: string): Promise<void> {
+		const parts = path.split("/");
+		parts.pop();
+		let current = "";
+		for (const part of parts) {
+			current = current ? `${current}/${part}` : part;
+			if (!this.vault.getAbstractFileByPath(current)) await this.vault.createFolder(current);
+		}
+	}
+
+	async createMoc(path: string): Promise<ToolResult> {
+		const cleanPath = sanitizeVaultPath(path);
+		if (!cleanPath || !cleanPath.toLowerCase().endsWith(".md")) {
+			return { ok: false, isError: true, content: "The MOC path must be a vault-relative .md path." };
+		}
+		if (this.isProtected(cleanPath)) return { ok: false, isError: true, content: "That folder is protected." };
+		if (this.vault.getAbstractFileByPath(cleanPath)) return { ok: false, isError: true, content: `Path already exists: ${cleanPath}` };
+		const links = this.vault
+			.getMarkdownFiles()
+			.filter((file) => !this.isProtected(file.path) && file.path !== cleanPath)
+			.sort((a, b) => a.path.localeCompare(b.path))
+			.slice(0, MAX_LIST_RESULTS)
+			.map((file) => `- [[${file.path.replace(/\.md$/i, "")}]]`);
+		const content = `# Map of Content\n\nGenerated from note metadata only.\n\n${links.join("\n")}\n`;
+		await this.ensureParentFolders(cleanPath);
+		await this.vault.create(cleanPath, content);
+		return { ok: true, content: `Created MOC ${cleanPath} with ${links.length} note links.` };
+	}
+
+	async adjustMoc(mocPath: string): Promise<ToolResult> {
+		const cleanMocPath = sanitizeVaultPath(mocPath);
+		if (!cleanMocPath || !cleanMocPath.toLowerCase().endsWith(".md")) {
+			return { ok: false, isError: true, content: "The MOC path must be a vault-relative .md path." };
+		}
+		if (this.isProtected(cleanMocPath)) return { ok: false, isError: true, content: "That folder is protected." };
+		const moc = this.getMarkdownFile(cleanMocPath);
+		if (!moc) return { ok: false, isError: true, content: `MOC not found: ${cleanMocPath}` };
+		const recent = this.vault
+			.getMarkdownFiles()
+			.filter((file) => !this.isProtected(file.path) && file.path !== cleanMocPath)
+			.sort((a, b) => b.stat.mtime - a.stat.mtime)[0];
+		if (!recent) return { ok: false, isError: true, content: "No eligible Markdown note was found." };
+		const link = `- [[${recent.path.replace(/\.md$/i, "")}]]`;
+		let appended = false;
+		await this.vault.process(moc, (data) => {
+			if (data.includes(link)) return data;
+			appended = true;
+			return `${data.trimEnd()}\n${link}\n`;
+		});
+		return { ok: true, content: appended ? `Adjusted ${cleanMocPath} with the latest note ${recent.path}.` : `${cleanMocPath} already includes the latest note ${recent.path}.` };
+	}
+
 	getToolDefinitions(): ToolDefinition[] {
 		return [
 			{
 				name: "list_files",
-				description: "List Markdown files by path. Returns metadata only, never file contents.",
+				description: "List Markdown files matching a narrow path filter. Returns metadata only, never file contents; broad vault listing is disabled.",
 				readOnly: true,
 				parameters: {
 					type: "object",
-					properties: { query: { type: "string", description: "Optional path substring filter." } },
+					properties: { query: { type: "string", description: "Required narrow path substring filter; do not use an empty query." } },
 				},
 			},
 			{

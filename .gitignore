@@ -22,3 +22,4 @@ coverage/
 /docs/review-packet-*.md
 /docs/review-results/
 /docs/live-model-catalog.json
+*.mp4
