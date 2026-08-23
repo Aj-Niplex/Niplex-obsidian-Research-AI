@@ -6,7 +6,7 @@ Run `npm ci`, `npm run build`, and `npm run lint` on the development machine. Co
 
 ## Android and iOS smoke test
 
-Copy `main.js`, `manifest.json`, and `styles.css` into a test vault at `.obsidian/plugins/obsidian-agentic-research/`. Enable the plugin, open the command palette, and select **Open agentic research**. The view should fit a narrow screen, the composer should remain usable without hover, and the run button should be reachable with touch.
+Copy `main.js`, `manifest.json`, and `styles.css` into a test vault at `.obsidian/plugins/niplex-agentic-research/`. Enable the plugin, open the command palette, and select **Open agentic research**. The view should fit a narrow screen, the composer should remain usable without hover, and the run button should be reachable with touch.
 
 In plugin settings, select Gemini, enter a test key, and verify that the key is retained after restarting Obsidian without appearing in `data.json`. Repeat with Agnes. Ask the agent to list files, search for a distinctive phrase, and read a long note starting from a chosen line. Confirm that the transcript shows metadata, snippets, and bounded windows rather than an entire note.
 
