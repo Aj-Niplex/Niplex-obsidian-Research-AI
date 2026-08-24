@@ -575,9 +575,9 @@ export class AgentView extends ItemView {
 		}
 		if (event.type === "error") {
 			this.lastRunErrorText = event.message;
-			this.setLiveStatus("The agent could not finish this run.");
-			this.busyEl?.remove();
-			this.busyEl = null;
+			this.setLiveStatus("Provider response received; preparing the recovery message…");
+			const busyText = this.busyEl?.querySelector<HTMLElement>(".oar-busy-text");
+			if (busyText) busyText.textContent = "The request ended with an error. Preparing the recovery action…";
 			if (this.activeStep) {
 				this.activeStep.toggleClass("is-running", false);
 				this.activeStep.open = false;
@@ -606,7 +606,7 @@ export class AgentView extends ItemView {
 		this.busyEl.setAttribute("role", "status");
 		this.busyEl.setAttribute("aria-live", "polite");
 		this.busyEl.createSpan({ cls: "oar-spinner", attr: { "aria-hidden": "true" } });
-		this.busyEl.createSpan({ text: "Connecting to the selected model… live recovery status will appear here." });
+		this.busyEl.createSpan({ cls: "oar-busy-text", text: "Connecting to the selected model… live recovery status will appear here." });
 		this.scrollToBottom();
 	}
 
