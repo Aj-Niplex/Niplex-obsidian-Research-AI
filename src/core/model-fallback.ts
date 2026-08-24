@@ -72,6 +72,17 @@ function modelScore(provider: ProviderAdapter, model: string): number {
 	return score;
 }
 
+function requestedGeminiRank(model: string): number {
+	const id = model.toLowerCase().replace(/_/g, "-");
+	if (/^gemini-3\.7(?:-|$)/.test(id)) return 0;
+	if (/^gemini-3\.6(?:$|-(?!flash))/.test(id)) return 1;
+	if (/^gemini-3\.6-flash(?:-|$)/.test(id)) return 2;
+	if (/^gemini-3\.5(?:$|-(?!flash))/.test(id)) return 3;
+	if (/^gemini-3\.5-flash(?:-|$)/.test(id)) return 4;
+	if (/^gemma-4-31b-it(?:-|$)/.test(id)) return 5;
+	return 6;
+}
+
 function nextCandidate(
 	provider: ProviderAdapter,
 	attempted: Set<string>,
@@ -82,7 +93,15 @@ function nextCandidate(
 	const available = new Set(catalogue.map((model) => model.id.trim()).filter(Boolean));
 	const allCandidates = uniqueModels([...configured, ...catalogue.map((model) => model.id.trim())]).filter((model) => available.size === 0 || available.has(model));
 	const candidates = allCandidates.filter((model) => !attempted.has(model) && !activeCooldown(provider, model, cooldowns));
-	const ranked = candidates.sort((a, b) => modelScore(provider, a) - modelScore(provider, b));
+	const ranked = candidates.sort((a, b) => {
+		if (provider.id === "gemini") {
+			const priorityDelta = requestedGeminiRank(a) - requestedGeminiRank(b);
+			if (priorityDelta !== 0) return priorityDelta;
+		}
+		return modelScore(provider, a) - modelScore(provider, b);
+	});
+	const preferred = provider.id === "gemini" ? ranked.filter((model) => requestedGeminiRank(model) < 6) : [];
+	if (preferred.length) return preferred[0] ?? null;
 	const fastChatModels = ranked.filter((model) => /(?:flash|mini|instant)/i.test(model));
 	return (fastChatModels.length ? fastChatModels : ranked)[0] ?? null;
 }

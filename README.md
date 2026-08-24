@@ -13,10 +13,10 @@ The plugin searches note names and metadata first, opens bounded line windows wh
 | Capability | Behavior |
 |---|---|
 | Autonomous research loop | Plans bounded steps, searches the vault, reads relevant line windows, and returns an evidence-grounded answer. |
-| Stoppable runtime | Shows a Claude-like action timeline and lets the user stop a run; stopping prevents the next model/tool step and preserves the safe stopped summary. |
-| Mobile-first workspace | Keeps the conversation and composer visible while secondary controls live behind **Actions** and compact icon controls. |
+| Stoppable runtime | Uses one circular composer button: it sends while idle, becomes Stop during a run, and returns to Send after completion or cancellation. The action timeline preserves a safe stopped summary. |
+| Mobile-first workspace | Keeps the conversation and composer visible while secondary tools live behind **Actions**; mobile hides optional shortcut icons to reduce visual clutter. |
 | Provider choice | Supports user-entered Gemini and Agnes API keys stored in Obsidian SecretStorage. |
-| Recovery from busy models | Rate limits, timeouts, temporary high-demand responses, and unavailable models trigger a visible cooldown and optional same-provider fallback. |
+| Recovery from busy models | Rate limits, timeouts, temporary high-demand responses, and unavailable models trigger a visible cooldown and fallback. Gemini tries 3.7, 3.6, 3.6 Flash, 3.5, 3.5 Flash, Gemma 4 31B, then other available top-tier models. |
 | Transparent prompt | Shows the protected Aj-Niplex/Niplex policy in a large read-only panel. The additive custom prompt is capped at 6,000 characters and cannot replace the protected policy. |
 | Bounded input | Caps the research question at 6,000 characters, installed skill guidance at 6,000 characters, injected context at 20,000 characters, and provider message history at 32,000 characters. |
 | Explicit context | The `+` control offers **Files** or **Folder**. A folder adds at most eight Markdown descendants; it does not upload the folder wholesale. |
@@ -30,7 +30,7 @@ The plugin searches note names and metadata first, opens bounded line windows wh
 
 ## Mobile interaction model
 
-The main view keeps the conversation visible and moves less frequent controls behind **Actions**. The quick-action bar holds up to three icons, followed by the model and mode selectors. The composer stays at the bottom: the text field is on the left, with context and send controls on the right. While a run is active, the send control becomes a red **Stop** control.
+The main view keeps the conversation visible and moves less frequent controls behind **Actions**. On mobile, optional shortcut icons are collapsed so the screen stays focused; model and research mode remain available in the compact control row. The composer stays at the bottom: the text field is on the left, with context and one stateful send/stop control on the right. While a run is active, that same button becomes a red **Stop** control and returns to Send when the run ends.
 
 Type `@` followed by an exact Markdown path or vault folder path to add it directly to the next run. The parser resolves only safe vault-relative paths, limits the result to eight Markdown files, and leaves unresolved mentions as normal text. Type `/skill` to open the mobile skill selector, choose skills, and set the answer-size preference without leaving the composer. Helper-installed skills are refreshed from `NIPLEX-OBSIDIAN/Skills/` each time the selector opens.
 
@@ -50,9 +50,9 @@ The following captures show the mobile interaction model, helper marketplace, in
 
 ## Latest release notes
 
-### 0.1.15 — mobile control and skills workflow
+### 0.1.16 — focused mobile workspace and model recovery
 
-This release adds a visible Stop control for active runs, cooperative abort handling across model fallback and bounded vault steps, direct `@path` and `@folder` context references, a `/skill` selector with built-in and Helper-installed skills, five answer-size levels, immediate installed-skill refresh, clearer Helper download/install feedback, and consistent Aj-Niplex branding. The release also adds the mobile screenshots above. No private prompts, API keys, raw tool payloads, or hidden chain-of-thought are persisted.
+This release replaces the separate Send and Stop controls with one stateful composer button, collapses optional quick-action icons on mobile, adds the requested Gemini/Gemma fallback priority, rewrites skill descriptions in plain language, and keeps the full `/skill`, `@path`, Helper refresh, and safe runtime timeline workflow. No private prompts, API keys, raw tool payloads, or hidden chain-of-thought are persisted.
 
 ## Architecture
 

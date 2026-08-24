@@ -51,7 +51,6 @@ export class AgentView extends ItemView {
 	private transcriptEl!: HTMLElement;
 	private inputEl!: HTMLTextAreaElement;
 	private runButton!: HTMLButtonElement;
-	private stopButton!: HTMLButtonElement;
 	private continueButton!: HTMLButtonElement;
 	private attachButton!: HTMLButtonElement;
 	private attachmentListEl!: HTMLElement;
@@ -136,18 +135,15 @@ export class AgentView extends ItemView {
 		});
 		setIcon(this.attachButton, "plus");
 		this.attachButton.addEventListener("click", () => this.openAttachmentChoice());
-			this.runButton = composerSide.createEl("button", {
-				cls: "mod-cta oar-run-button",
-				attr: { "aria-label": "Run agent", title: "Run agent", type: "button" },
-			});
-			setIcon(this.runButton, "arrow-up");
-			this.runButton.addEventListener("click", () => void this.submit());
-			this.stopButton = composerSide.createEl("button", {
-				cls: "oar-stop-button",
-				attr: { "aria-label": "Stop run", title: "Stop run", type: "button", hidden: "true" },
-			});
-			setIcon(this.stopButton, "square");
-			this.stopButton.addEventListener("click", () => this.stopRun());
+		this.runButton = composerSide.createEl("button", {
+			cls: "mod-cta oar-run-button",
+			attr: { "aria-label": "Run agent", title: "Run agent", type: "button" },
+		});
+		setIcon(this.runButton, "arrow-up");
+		this.runButton.addEventListener("click", () => {
+			if (this.requestInFlight) this.stopRun();
+			else void this.submit();
+		});
 
 		const queryCounter = composer.createDiv({ cls: "oar-query-counter", attr: { "aria-live": "polite" } });
 		const updateQueryCounter = () => {
@@ -258,7 +254,7 @@ export class AgentView extends ItemView {
 		if (!this.requestInFlight || !this.activeAbortController) return;
 		this.activeAbortController.abort();
 		this.setLiveStatus("Stopping the run…");
-		this.stopButton.disabled = true;
+
 		const busyText = this.busyEl?.querySelector<HTMLElement>(".oar-busy-text");
 		if (busyText) busyText.textContent = "Stopping after the current safe operation…";
 	}
@@ -704,26 +700,23 @@ export class AgentView extends ItemView {
 		this.requestInFlight = submitting;
 		this.liveStatusEl?.toggleClass("is-running", submitting);
 		this.liveStatusEl?.setAttribute("aria-busy", submitting ? "true" : "false");
-		this.runButton.disabled = submitting;
-		this.runButton.hidden = submitting;
-		this.stopButton.hidden = !submitting;
-		this.stopButton.disabled = false;
+		this.runButton.disabled = false;
+		this.runButton.toggleClass("is-stop", submitting);
+		this.runButton.setAttribute("aria-label", submitting ? "Stop run" : "Run agent");
+		this.runButton.setAttribute("title", submitting ? "Stop run" : "Run agent");
 		this.continueButton.disabled = submitting || this.continueButton.disabled;
 		this.inputEl.disabled = submitting;
 		this.attachButton.disabled = submitting;
 		if (submitting) {
 			this.runButton.empty();
-			setIcon(this.runButton, "loader");
-			this.runButton.setAttribute("aria-label", "Waiting for model response");
+			setIcon(this.runButton, "square");
 		} else {
 			this.runButton.empty();
 			setIcon(this.runButton, "arrow-up");
-				this.runButton.setAttribute("aria-label", "Run agent");
-				this.runButton.setAttribute("title", "Run agent");
-			}
 		}
+	}
 
-		private async submit(): Promise<void> {
+	private async submit(): Promise<void> {
 			const prompt = this.inputEl.value.trim();
 			if (!prompt || this.requestInFlight) return;
 			const inline = this.resolveInlineAttachments(prompt);

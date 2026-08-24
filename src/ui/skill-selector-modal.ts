@@ -14,28 +14,28 @@ export interface SkillSelectorHost {
 const BUILT_IN_SKILLS: InstalledSkill[] = [
 	{
 		code: "VAULT1",
-		name: "Vault-first research",
+		name: "Use my vault first",
 		version: "built-in",
-		description: "Use bounded vault evidence as the primary dataset and state when the vault does not contain enough evidence.",
+		description: "Look at the most relevant notes first, use them as the main evidence, and say clearly when your vault does not have the answer.",
 		prompt: "Prefer relevant bounded vault notes as the primary evidence for this request. Do not invent vault facts, and clearly separate vault evidence from general knowledge.",
 		settingsPatch: {},
 	},
 	{
 		code: "DUMB1",
-		name: "Real-world context only",
+		name: "Keep outside knowledge small",
 		version: "built-in",
-		description: "Keep outside knowledge modest and let the user’s bounded vault context carry the research.",
+		description: "Keep general web knowledge brief and use your selected vault notes as the main dataset instead of guessing from the real world.",
 		prompt: "Use general real-world knowledge only to explain or connect the user’s bounded vault evidence. Do not treat outside knowledge as a substitute for reading relevant vault notes.",
 		settingsPatch: {},
 	},
 ];
 
 const OUTPUT_OPTIONS: Array<{ value: OutputSize; label: string; description: string }> = [
-	{ value: "lowest", label: "Lowest", description: "Essential result only" },
-	{ value: "low", label: "Low", description: "Short answer and key evidence" },
-	{ value: "standard", label: "Standard", description: "Balanced answer" },
-	{ value: "high", label: "High", description: "Detailed answer and caveats" },
-	{ value: "maximum", label: "Maximum", description: "Most complete bounded answer" },
+		{ value: "lowest", label: "Lowest", description: "A few sentences with the direct answer" },
+		{ value: "low", label: "Low", description: "Short answer plus the most important evidence" },
+		{ value: "standard", label: "Standard", description: "Balanced answer for everyday research" },
+		{ value: "high", label: "High", description: "More detail, sources, and limitations" },
+		{ value: "maximum", label: "Maximum", description: "The fullest answer within safe context limits" },
 ];
 
 export class SkillSelectorModal extends Modal {
@@ -59,12 +59,12 @@ export class SkillSelectorModal extends Modal {
 		contentEl.addClass("oar-modal", "oar-skill-selector");
 		contentEl.createEl("h2", { text: "Choose skills for this chat" });
 		contentEl.createEl("p", {
-			text: "Skills are additive instructions. They cannot replace the protected policy, read protected folders, reveal secrets, or bypass approvals.",
+			text: "Choose what kind of help you want. Skills guide the answer; they do not replace the safety policy, read protected folders, reveal secrets, or bypass approvals.",
 			cls: "oar-muted",
 		});
 
 		const output = contentEl.createDiv({ cls: "oar-skill-output-control" });
-		output.createEl("label", { text: "Answer size" });
+		output.createEl("label", { text: "How much detail should the answer contain?" });
 		this.outputSelect = output.createEl("select", { attr: { "aria-label": "Answer size" } });
 		for (const option of OUTPUT_OPTIONS) this.outputSelect.add(new Option(`${option.label} · ${option.description}`, option.value));
 		this.outputSelect.value = this.outputSize;
@@ -97,7 +97,7 @@ export class SkillSelectorModal extends Modal {
 		this.listEl.empty();
 		const skills = [...BUILT_IN_SKILLS, ...installed.filter((skill) => !BUILT_IN_SKILLS.some((builtIn) => builtIn.code === skill.code))];
 		if (!skills.length) {
-			this.listEl.createDiv({ text: "No installed skills yet. Install one through Niplex Skills Helper, then reopen /skill.", cls: "oar-muted" });
+			this.listEl.createDiv({ text: "No Helper skills are installed yet. Install one in Niplex Skills Helper, then type /skill again to refresh this list.", cls: "oar-muted" });
 			return;
 		}
 		for (const skill of skills) {
@@ -110,7 +110,7 @@ export class SkillSelectorModal extends Modal {
 			});
 			const copy = label.createDiv({ cls: "oar-skill-option-copy" });
 			copy.createEl("strong", { text: `${skill.name} · ${skill.code}` });
-			copy.createEl("small", { text: `${skill.version} · ${skill.description}` });
+			copy.createEl("small", { text: `${skill.version} · What it does: ${skill.description}` });
 		}
 	}
 

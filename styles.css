@@ -459,21 +459,20 @@
 
 .oar-run-button {
 	border-radius: 50%;
+	transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
 }
 
-.oar-attach-button {
-	border-radius: 50%;
-}
-
-.oar-stop-button {
-	border-radius: 50%;
+.oar-run-button.is-stop {
 	background: var(--background-modifier-error);
 	color: var(--text-error);
 }
 
-.oar-stop-button svg {
-	width: 1rem;
-	height: 1rem;
+.oar-run-button.is-stop:active {
+	transform: scale(0.94);
+}
+
+.oar-attach-button {
+	border-radius: 50%;
 }
 
 .oar-query-counter {
@@ -1289,7 +1288,11 @@
 	}
 
 	.oar-quick-buttons {
-		gap: 0.2rem;
+		display: none;
+	}
+
+	.oar-quick-bar {
+		justify-content: flex-end;
 	}
 
 	.oar-quick-button {

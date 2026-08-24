@@ -99,6 +99,17 @@ test("prefers fast modern catalogue models over Gemma or older pro models", asyn
 	assert.deepEqual(provider.attempted, ["primary", "gemini-3.7-flash"]);
 });
 
+test("uses the requested Gemini and Gemma fallback priority", async () => {
+	const ordered = ["gemini-3.7-flash", "gemini-3.6-pro", "gemini-3.6-flash", "gemini-3.5-pro", "gemini-3.5-flash", "gemma-4-31b-it", "gemini-2.5-pro"];
+	const responses: Record<string, Error | ProviderResponse> = { primary: new ProviderRequestError("quota exceeded", 429) };
+	for (const model of ordered.slice(0, -1)) responses[model] = new ProviderRequestError("rate limit", 429);
+	responses[ordered.at(-1)!] = { text: "top tier recovery", toolCalls: [] };
+	const provider = new FakeProvider(responses, [{ id: "primary", label: "Primary" }, ...ordered.map((id) => ({ id, label: id }))]);
+	const result = await completeWithModelFallback(provider, request, { enabled: true, configuredFallbackModels: [] });
+	assert.equal(result.model, "gemini-2.5-pro");
+	assert.deepEqual(provider.attempted, ["primary", ...ordered]);
+});
+
 test("stops an in-flight model attempt without starting fallback", async () => {
 	const controller = new AbortController();
 	const attempted: string[] = [];
