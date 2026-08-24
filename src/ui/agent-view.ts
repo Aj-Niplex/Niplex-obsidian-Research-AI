@@ -17,7 +17,7 @@ export const LEGACY_AGENT_VIEW_TYPE = "obsidian-agentic-research-view";
 export interface AgentViewHost extends MocHost, FilePickerHost {
 	settings: AgentSettings;
 	saveSettings(): Promise<void>;
-	runAgent(prompt: string, history: ChatMessage[], emit: (event: AgentEvent) => void, attachedFiles?: string[]): Promise<AgentRunResult>;
+	runAgent(prompt: string, history: ChatMessage[], emit: (event: AgentEvent) => void, attachedFiles?: string[], conversationSubject?: string, recentSubjects?: string[]): Promise<AgentRunResult>;
 	getChats(): SavedChat[];
 	getChat(id: string): SavedChat | null;
 	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<ProviderModel[]>;
@@ -62,6 +62,10 @@ export class AgentView extends ItemView {
 	private lastRunErrorText = "";
 	private lastErrorEl: HTMLElement | null = null;
 	private requestInFlight = false;
+	private runStartedAt = 0;
+	private liveStatusEl: HTMLElement | null = null;
+	private runActivityLabels: string[] = [];
+	private finalAnswerRendered = false;
 
 	constructor(leaf: WorkspaceLeaf, host: AgentViewHost) {
 		super(leaf);
@@ -97,6 +101,8 @@ export class AgentView extends ItemView {
 		this.quickBarEl = header.createDiv({ cls: "oar-quick-bar" });
 		this.renderQuickBar();
 
+		this.liveStatusEl = root.createDiv({ cls: "oar-live-status", attr: { role: "status", "aria-live": "polite" } });
+		this.liveStatusEl.createSpan({ cls: "oar-live-status-text", text: "Ready for your next question." });
 		this.transcriptEl = root.createDiv({ cls: "oar-transcript" });
 		this.renderCurrentChat();
 
@@ -283,6 +289,8 @@ export class AgentView extends ItemView {
 		const chat = this.host.getChat(id);
 		if (!chat) return;
 		this.currentChat = { ...chat, attachments: [...(chat.attachments ?? [])], messages: [...chat.messages] };
+		this.runActivityLabels = [];
+		this.finalAnswerRendered = false;
 		this.currentChatPersisted = true;
 		this.host.settings.provider = chat.provider;
 		if (chat.model) {
@@ -297,6 +305,9 @@ export class AgentView extends ItemView {
 
 	private startNewChat(): void {
 		this.currentChat = newChat();
+		this.runActivityLabels = [];
+		this.finalAnswerRendered = false;
+		this.setLiveStatus("Ready for your next question.");
 		this.currentChat.provider = this.host.settings.provider;
 		this.currentChat.model = this.host.settings.provider === "gemini" ? this.host.settings.geminiModel : this.host.settings.agnesModel;
 		this.currentChatPersisted = false;
@@ -393,7 +404,9 @@ export class AgentView extends ItemView {
 		this.activeStep = null;
 		this.busyEl = null;
 		const subject = this.currentChat.subject ?? this.currentChat.title;
-		this.appendSystem(this.currentChat.messages.length ? `Loaded “${subject}”.` : "Ready. Start with a focused research question.");
+		const loadedMessage = this.currentChat.messages.length ? `Loaded “${subject}”.` : "Ready. Start with a focused research question.";
+		this.setLiveStatus(loadedMessage);
+		this.appendSystem(loadedMessage);
 		for (const message of this.currentChat.messages) {
 			if (message.role === "user") this.appendUser(message.content);
 			else if (message.role === "assistant" && message.content && !message.toolCalls?.length) this.appendAssistant(message.content);
@@ -486,8 +499,31 @@ export class AgentView extends ItemView {
 		return details.querySelector<HTMLElement>(".oar-step-body") ?? details.createDiv({ cls: "oar-step-body" });
 	}
 
+	private setLiveStatus(text: string): void {
+		if (!this.liveStatusEl) return;
+		const textEl = this.liveStatusEl.querySelector<HTMLElement>(".oar-live-status-text") ?? this.liveStatusEl;
+		textEl.textContent = text;
+	}
+
+	private trackActivity(label: string): void {
+		if (!label || this.runActivityLabels.at(-1) === label) return;
+		this.runActivityLabels.push(label);
+		if (this.runActivityLabels.length > 8) this.runActivityLabels.shift();
+	}
+
+	private appendActivitySummary(): void {
+		if (!this.runActivityLabels.length) return;
+		const details = this.transcriptEl.createEl("details", { cls: "oar-activity-summary" });
+		details.createEl("summary", { text: `Activity summary · ${this.runActivityLabels.length} bounded actions` });
+		const list = details.createEl("ul");
+		for (const label of this.runActivityLabels) list.createEl("li", { text: label });
+	}
+
 	private appendToolEvent(event: AgentEvent): void {
-		const details = this.setStepSummary(event.step ?? 0, `Using ${event.tool?.name ?? "vault tool"}`, false);
+		const toolName = event.tool?.name ?? "vault tool";
+		this.trackActivity(`Used ${toolName}`);
+		this.setLiveStatus(`Agent used ${toolName} and is checking the bounded result…`);
+		const details = this.setStepSummary(event.step ?? 0, `Using ${toolName}`, false);
 		const body = this.stepBody(details);
 		body.empty();
 		body.createEl("small", { text: "Bounded result preview" });
@@ -499,8 +535,7 @@ export class AgentView extends ItemView {
 
 	private appendEvent(event: AgentEvent): void {
 		if (event.type === "status" && event.phase === "thinking") {
-			this.busyEl?.remove();
-			this.busyEl = null;
+			this.setLiveStatus(event.message);
 			this.setStepSummary(event.step ?? 0, event.message, true).open = true;
 			return;
 		}
@@ -515,12 +550,17 @@ export class AgentView extends ItemView {
 					this.activeStep.open = false;
 				}
 				this.appendAssistant(event.message);
+				this.trackActivity("Prepared the final answer");
+				this.appendActivitySummary();
+				this.finalAnswerRendered = true;
+				this.setLiveStatus("Answer ready.");
 			} else {
-				const details = this.setStepSummary(event.step ?? 0, "Agent update", true);
+				this.trackActivity("Prepared the next bounded action");
+				this.setLiveStatus("Preparing the next bounded action…");
+				const details = this.setStepSummary(event.step ?? 0, "Preparing the next bounded action", true);
 				const body = this.stepBody(details);
 				body.empty();
-				const content = body.createDiv({ cls: "oar-markdown oar-step-update" });
-				void MarkdownRenderer.render(this.app, event.message, content, "", this);
+				body.createDiv({ cls: "oar-step-update", text: "The agent is selecting the next safe action. Detailed private reasoning is not displayed or saved." });
 				this.scrollToBottom();
 			}
 			return;
@@ -530,10 +570,12 @@ export class AgentView extends ItemView {
 				this.activeStep.toggleClass("is-running", false);
 				this.activeStep.open = false;
 			}
+			if (!this.finalAnswerRendered) this.setLiveStatus("Finishing the answer…");
 			return;
 		}
 		if (event.type === "error") {
 			this.lastRunErrorText = event.message;
+			this.setLiveStatus("The agent could not finish this run.");
 			this.busyEl?.remove();
 			this.busyEl = null;
 			if (this.activeStep) {
@@ -558,6 +600,7 @@ export class AgentView extends ItemView {
 	}
 
 	private showImmediateBusy(): void {
+		this.setLiveStatus("Agent is working…");
 		this.busyEl?.remove();
 		this.busyEl = this.transcriptEl.createDiv({ cls: "oar-busy" });
 		this.busyEl.setAttribute("role", "status");
@@ -569,6 +612,8 @@ export class AgentView extends ItemView {
 
 	private setSubmitting(submitting: boolean): void {
 		this.requestInFlight = submitting;
+		this.liveStatusEl?.toggleClass("is-running", submitting);
+		this.liveStatusEl?.setAttribute("aria-busy", submitting ? "true" : "false");
 		this.runButton.disabled = submitting;
 		this.continueButton.disabled = submitting || this.continueButton.disabled;
 		this.inputEl.disabled = submitting;
@@ -595,27 +640,30 @@ export class AgentView extends ItemView {
 		this.inputEl.dispatchEvent(new Event("input"));
 		const history = compactChatMessages(this.currentChat.messages);
 		const attachments = [...(this.currentChat.attachments ?? [])];
-		const isFirstUserMessage = !this.currentChat.messages.some((message) => message.role === "user");
+		const previousSubject = this.currentChat.subject ?? this.currentChat.title;
 		this.appendUser(prompt);
 		this.currentChat.messages.push({ role: "user", content: prompt });
-		if (isFirstUserMessage) {
-			const subject = deriveChatSubject(prompt);
-			this.currentChat.title = subject;
-			this.currentChat.subject = subject;
-		}
+		const subject = deriveChatSubject(prompt, previousSubject);
+		this.currentChat.title = subject;
+		this.currentChat.subject = subject;
+		this.runActivityLabels = ["Sent a bounded request"];
+		this.finalAnswerRendered = false;
+		this.runStartedAt = Date.now();
 		this.currentChatPersisted = true;
 		this.showImmediateBusy();
 		this.setSubmitting(true);
 		try {
 			await this.host.saveChat(this.currentChat);
-			const result = await this.host.runAgent(prompt, history, (event) => this.appendEvent(event), attachments);
+			const recentSubjects = this.host.getChats().map((chat) => chat.subject ?? chat.title).filter((value) => value && value !== subject).slice(-6);
+			const result = await this.host.runAgent(prompt, history, (event) => this.appendEvent(event), attachments, subject, recentSubjects);
 			this.currentChat.model = result.model;
 			this.currentChat.attachments = attachments;
 			this.continueButton.disabled = !result.stopped;
-			this.currentChat.messages = compactChatMessages(result.messages.filter((message) => message.role !== "system"));
-			if (this.lastRunErrorText && !this.currentChat.messages.some((message) => message.role === "assistant" && message.content === result.text)) {
-				this.currentChat.messages.push({ role: "assistant", content: result.text });
+			if (result.subject) {
+				this.currentChat.title = result.subject;
+				this.currentChat.subject = result.subject;
 			}
+			this.currentChat.messages = compactChatMessages([...history, { role: "user", content: prompt }, { role: "assistant", content: result.text }]);
 			await this.host.saveChat(this.currentChat);
 		} catch (error) {
 			this.continueButton.disabled = true;
@@ -629,6 +677,8 @@ export class AgentView extends ItemView {
 				// Keep the visible error even if the vault is temporarily unavailable.
 			}
 		} finally {
+			const remainingStatusMs = Math.max(0, 650 - (Date.now() - this.runStartedAt));
+			if (remainingStatusMs) await new Promise<void>((resolve) => window.setTimeout(resolve, remainingStatusMs));
 			this.busyEl?.remove();
 			this.busyEl = null;
 			this.setSubmitting(false);

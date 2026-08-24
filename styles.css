@@ -258,6 +258,25 @@
 	overflow-x: auto;
 }
 
+.oar-live-status {
+	display: flex;
+	align-items: center;
+	min-height: 2rem;
+	margin: var(--size-4-2) 0;
+	padding: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--oar-radius);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.35;
+	word-break: break-word;
+}
+
+.oar-live-status.is-running {
+	border-color: var(--interactive-accent);
+	color: var(--text-normal);
+}
+
 .oar-busy {
 	display: flex;
 	align-items: center;
@@ -328,6 +347,26 @@
 .oar-step-update {
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
+}
+
+.oar-activity-summary {
+	margin: var(--size-4-2) 0;
+	padding: 0 var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--oar-radius);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.oar-activity-summary summary {
+	padding: var(--size-4-2) 0;
+	cursor: pointer;
+}
+
+.oar-activity-summary ul {
+	margin: 0 0 var(--size-4-2);
+	padding-left: var(--size-4-4);
 }
 
 .oar-tool-preview {

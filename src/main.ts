@@ -19,6 +19,7 @@ import { LocalVaultStore, NIPLEX_MEMORY_FILE, type InstalledSkill } from "./core
 import { normalizeUserSystemPrompt } from "./core/system-prompt";
 import { boundInjectedContext, boundText, CONTEXT_BUDGETS } from "./core/context-budget";
 import { compactChatMessages } from "./core/chat-history";
+import { deriveChatSubject, normalizeGeneratedSubject } from "./core/chat-subject";
 import { getCompanionDefinition, isCompanionVersionCurrent, type CompanionPluginId, type CompanionPluginStatus } from "./core/companion-plugins";
 
 interface PersistedData {
@@ -33,7 +34,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeChat(value: unknown): SavedChat | null {
 	if (!isRecord(value) || typeof value.id !== "string" || typeof value.title !== "string" || !Array.isArray(value.messages)) return null;
-	const subject = typeof value.subject === "string" && value.subject.trim() ? value.subject.trim() : value.title.trim() || "Research chat";
+	const rawSubject = typeof value.subject === "string" && value.subject.trim() ? value.subject.trim() : value.title.trim() || "Research chat";
+	const messages = compactChatMessages(value.messages.filter((message): message is ChatMessage => isRecord(message) && typeof message.role === "string" && typeof message.content === "string"));
+	const firstPrompt = messages.find((message) => message.role === "user")?.content ?? "";
+	const subject = normalizeGeneratedSubject(rawSubject) || deriveChatSubject(firstPrompt);
 	return {
 		id: value.id,
 		title: subject,
@@ -42,7 +46,7 @@ function normalizeChat(value: unknown): SavedChat | null {
 		updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : Date.now(),
 		provider: value.provider === "agnes" ? "agnes" : "gemini",
 		model: typeof value.model === "string" ? value.model : "",
-		messages: compactChatMessages(value.messages.filter((message): message is ChatMessage => isRecord(message) && typeof message.role === "string" && typeof message.content === "string")),
+		messages,
 		attachments: Array.isArray(value.attachments) ? [...new Set(value.attachments.filter((path): path is string => typeof path === "string").map((path) => path.trim()).filter(Boolean))].slice(0, 8) : [],
 	};
 }
@@ -294,20 +298,25 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		history: ChatMessage[],
 		emit: (event: AgentEvent) => void,
 		attachedFiles: string[] = [],
+		conversationSubject = "Chat",
+		recentSubjects: string[] = [],
 	): Promise<AgentRunResult> {
 		await this.ensureUsableModel(this.settings.provider);
 		const query = prompt.toLowerCase();
 		const mentionsMemory = /\b(memory|personaliz|preference|remember|forget|profile|about me)\b/.test(query);
 		const uniqueAttachments = [...new Set(attachedFiles.map((path) => path.trim()).filter(Boolean))].slice(0, 8);
+		const priorSubjects = [...new Set(recentSubjects.map((value) => value.trim()).filter(Boolean))].slice(-5).map((value) => boundText(value, 72));
 		const activeFile = this.app.workspace.getActiveFile();
 		const activeMocPath = this.settings.activeMocPath.trim();
 		const needsResearchContext = this.settings.researchMode === "plan" || Boolean(activeMocPath) || uniqueAttachments.length > 0 || /\b(research|vault|note|file|moc|map of content|source|citation|summari[sz]|analy[sz]|compare|study|literature|evidence)\b/.test(query);
+		const isFirstTurn = !history.some((message) => message.role === "user");
 		const hints: string[] = [`Selected research mode: ${this.settings.researchMode}. In plan and chat modes, do not request write tools; create and edit mode is required before a durable change can be considered.`];
+		hints.push(`Current chat subject: ${boundText(conversationSubject || "Chat", 72)}. At the end of a final answer, append one concise neutral title in <chat_subject>Title</chat_subject> using the current query and this subject. Do not discuss the marker.`);
+		if (isFirstTurn && priorSubjects.length) hints.push(`Older chat subjects for continuity only: ${priorSubjects.join(" | ")}`);
 		if (mentionsMemory) hints.push("User memory is optional personalization at NIPLEX-OBSIDIAN/Memory/User memory.md. Read it only when relevant; propose short durable preferences and update it only after explicit intent and approval. Never store secrets.");
 		if (needsResearchContext && activeFile) hints.push(`The currently open note is ${activeFile.path}. Use tools to inspect it if relevant.`);
 		const vaultContext = this.createVaultContext();
 		const superMocPath = vaultContext.getSuperMocFiles()[0] ?? "";
-		const isFirstTurn = !history.some((message) => message.role === "user");
 		if (activeMocPath) {
 			hints.push(`The user selected this Map of Content as the preferred scope: ${activeMocPath}. Read it first, then follow only relevant links.`);
 		}

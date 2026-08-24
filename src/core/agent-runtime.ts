@@ -5,6 +5,7 @@ import { VaultContext } from "./vault-context";
 import { protectHistory } from "./system-prompt";
 import { boundHistoryMessages, boundText, CONTEXT_BUDGETS } from "./context-budget";
 import { extractYoutubeUrl } from "./youtube";
+import { splitGeneratedSubject } from "./chat-subject";
 
 export type AgentEventPhase = "thinking" | "tool" | "answer" | "error" | "complete";
 
@@ -22,6 +23,7 @@ export interface AgentRunResult {
 	text: string;
 	messages: ChatMessage[];
 	model: string;
+	subject?: string;
 	stopped?: boolean;
 }
 
@@ -96,7 +98,9 @@ export class AgentRuntime {
 		const boundedPrompt = boundText(prompt.trim(), CONTEXT_BUDGETS.maxRequestMessageChars);
 		const videoUrl = extractYoutubeUrl(boundedPrompt);
 		messages.push({ role: "user", content: boundedPrompt, ...(videoUrl ? { videoUrl } : {}) });
-		let lastText = "";
+			let lastText = "";
+		let generatedSubject: string | undefined;
+		const executedToolKeys = new Set<string>();
 		let activeModel = configuredModel(this.settings);
 		for (let iteration = 1; iteration <= this.settings.maxIterations; iteration += 1) {
 			trimHistory(messages);
@@ -141,22 +145,24 @@ export class AgentRuntime {
 					return { text: message, messages, model: activeModel };
 			}
 
-			const calls = response.toolCalls ?? [];
-			if (response.text) {
-				lastText = response.text;
-				emit({
-					type: "text",
-					phase: calls.length === 0 ? "answer" : "thinking",
-					step: iteration,
-					final: calls.length === 0,
-					message: response.text,
-				});
-			}
-			if (calls.length === 0) {
-				messages.push({ role: "assistant", content: response.text });
-				emit({ type: "status", phase: "complete", step: iteration, message: "Finished." });
-					return { text: lastText || "The provider returned no text.", messages, model: activeModel };
-			}
+				const calls = response.toolCalls ?? [];
+				const visibleResponse = calls.length === 0 ? splitGeneratedSubject(response.text) : { text: response.text };
+				if (visibleResponse.subject) generatedSubject = visibleResponse.subject;
+				if (visibleResponse.text) {
+					lastText = visibleResponse.text;
+					emit({
+						type: "text",
+						phase: calls.length === 0 ? "answer" : "thinking",
+						step: iteration,
+						final: calls.length === 0,
+						message: visibleResponse.text,
+					});
+				}
+				if (calls.length === 0) {
+					messages.push({ role: "assistant", content: visibleResponse.text });
+					emit({ type: "status", phase: "complete", step: iteration, message: "Finished." });
+					return { text: lastText || "The provider returned no text.", messages, model: activeModel, ...(generatedSubject ? { subject: generatedSubject } : {}) };
+				}
 
 			messages.push({ role: "assistant", content: response.text, toolCalls: calls });
 			const [call] = calls.slice(0, MAX_TOOL_CALLS_PER_STEP);
@@ -179,6 +185,14 @@ export class AgentRuntime {
 				emit({ type: "tool", phase: "tool", step: iteration, message: unknown.content, tool: call, result: unknown });
 				continue;
 			}
+				const callKey = `${call.name}:${JSON.stringify(call.arguments ?? {})}`;
+				if (executedToolKeys.has(callKey)) {
+					const duplicate: ToolResult = { ok: false, isError: true, content: "This exact bounded action was already completed in this request. Use the existing result and continue without repeating it." };
+					messages.push({ role: "tool", content: duplicate.content, toolCallId: call.id, toolName: call.name });
+					emit({ type: "tool", phase: "tool", step: iteration, message: duplicate.content, tool: call, result: duplicate });
+					continue;
+				}
+				executedToolKeys.add(callKey);
 				if (!definition.readOnly && this.settings.researchMode !== "edit") {
 					const denied: ToolResult = { ok: false, isError: true, content: `Write blocked in ${this.settings.researchMode} mode. Switch the mode selector to Create & edit before requesting a durable change.` };
 					messages.push({ role: "tool", content: denied.content, toolCallId: call.id, toolName: call.name });
@@ -204,6 +218,6 @@ export class AgentRuntime {
 		}
 		const message = `Stopped after ${this.settings.maxIterations} agent steps. ${lastText || "Ask a follow-up question to continue."}`;
 		emit({ type: "status", phase: "complete", message });
-		return { text: message, messages, model: activeModel, stopped: true };
+		return { text: message, messages, model: activeModel, ...(generatedSubject ? { subject: generatedSubject } : {}), stopped: true };
 	}
 }
