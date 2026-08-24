@@ -4,7 +4,8 @@ export interface CompanionPluginDefinition {
 	id: CompanionPluginId;
 	name: string;
 	description: string;
-	installUrl: string;
+	communitySearchName: string;
+	manualInstallUrl: string;
 	expectedVersion?: string;
 	required: boolean;
 }
@@ -21,7 +22,8 @@ export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
 		id: "niplex-skills-helper",
 		name: "Niplex Skills Helper",
 		description: "Look up and preview five-character instruction-skill packages.",
-		installUrl: "https://github.com/Aj-Niplex/niplex-obsidian-helper/releases/latest",
+		communitySearchName: "Niplex Skills Helper",
+		manualInstallUrl: "https://github.com/Aj-Niplex/niplex-obsidian-helper/releases/latest",
 		expectedVersion: "0.1.3",
 		required: true,
 	},
@@ -29,7 +31,8 @@ export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
 		id: "obsidian-icon-folder",
 		name: "Iconize",
 		description: "Optional file and folder icons. Niplex Research AI does not require it for its own interface.",
-		installUrl: "https://github.com/FlorianWoelki/obsidian-iconize/releases/latest",
+		communitySearchName: "Iconize",
+		manualInstallUrl: "https://github.com/FlorianWoelki/obsidian-iconize/releases/latest",
 		required: false,
 	},
 ];

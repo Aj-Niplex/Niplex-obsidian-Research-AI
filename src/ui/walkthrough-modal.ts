@@ -47,7 +47,7 @@ export class WalkthroughModal extends Modal {
 		const companionCard = contentEl.createDiv({ cls: "oar-companion-card" });
 		companionCard.createEl("strong", { text: "Companion plugins" });
 		companionCard.createEl("p", {
-			text: "Niplex skills helper is recommended for the skill marketplace. Iconize is optional. This plugin never silently downloads, enables, or replaces third-party code; if one is missing, use its install link and then enable it from Obsidian’s community plugins screen.",
+			text: "Niplex skills helper is recommended for the skill marketplace. Iconize is optional. If one is missing or needs an update, the primary button opens Obsidian’s community plugins screen; GitHub is shown only as a manual fallback. This plugin never silently downloads, enables, or replaces third-party code.",
 			cls: "oar-muted",
 		});
 		for (const definition of COMPANION_PLUGINS) this.renderCompanion(companionCard, definition.id);
@@ -105,44 +105,60 @@ export class WalkthroughModal extends Modal {
 		void this.refreshCompanion(row, action, definition.id);
 	}
 
-	private async refreshCompanion(row: HTMLElement, action: HTMLButtonElement, pluginId: CompanionPluginId): Promise<void> {
-		const definition = COMPANION_PLUGINS.find((plugin) => plugin.id === pluginId);
-		if (!definition) return;
-		const label = row.querySelector("strong");
-		try {
-			const status = await this.host.getCompanionStatus(pluginId);
-			const version = status.installedVersion ? ` v${status.installedVersion}` : "";
-			if (!status.installed) {
-				if (label) label.textContent = `${definition.name} — not installed`;
-				action.textContent = "Open install page";
-				action.disabled = false;
-				action.addEventListener("click", () => window.open(definition.installUrl, "_blank", "noopener"));
-				return;
-			}
-			if (!status.upToDate) {
-				if (label) label.textContent = `${definition.name} — update recommended${version}`;
-				action.textContent = "Open update page";
-				action.disabled = false;
-				action.addEventListener("click", () => window.open(definition.installUrl, "_blank", "noopener"));
-				return;
-			}
-			if (!status.enabled) {
-				if (label) label.textContent = `${definition.name} — installed${version}, disabled`;
-				action.textContent = "Open community plugins";
-				action.disabled = false;
-				action.addEventListener("click", () => this.host.openCommunityPlugins());
-				return;
-			}
-			if (label) label.textContent = `${definition.name} — ready${version}`;
-			action.textContent = "Up to date";
-			action.disabled = true;
-		} catch {
-			if (label) label.textContent = `${definition.name} — status unavailable`;
-			action.textContent = "Open install page";
-			action.disabled = false;
-			action.addEventListener("click", () => window.open(definition.installUrl, "_blank", "noopener"));
-		}
+	private openCompanionCommunity(definition: (typeof COMPANION_PLUGINS)[number]): void {
+		this.host.openCommunityPlugins();
+		new Notice(`In Community plugins, search for “${definition.communitySearchName}”.`, 7000);
 	}
+
+	private addManualFallback(row: HTMLElement, definition: (typeof COMPANION_PLUGINS)[number]): void {
+		row.createEl("a", {
+			text: "Manual GitHub install",
+			cls: "oar-companion-fallback-link",
+			attr: { href: definition.manualInstallUrl, target: "_blank", rel: "noopener" },
+		});
+	}
+
+	private async refreshCompanion(row: HTMLElement, action: HTMLButtonElement, pluginId: CompanionPluginId): Promise<void> {
+			const definition = COMPANION_PLUGINS.find((plugin) => plugin.id === pluginId);
+			if (!definition) return;
+			const label = row.querySelector("strong");
+			try {
+				const status = await this.host.getCompanionStatus(pluginId);
+				const version = status.installedVersion ? ` v${status.installedVersion}` : "";
+				if (!status.installed) {
+					if (label) label.textContent = `${definition.name} — not installed`;
+					action.textContent = "Open Obsidian plugins";
+					action.disabled = false;
+					action.addEventListener("click", () => this.openCompanionCommunity(definition));
+					this.addManualFallback(row, definition);
+					return;
+				}
+				if (!status.upToDate) {
+					if (label) label.textContent = `${definition.name} — update recommended${version}`;
+					action.textContent = "Open Obsidian plugins";
+					action.disabled = false;
+					action.addEventListener("click", () => this.openCompanionCommunity(definition));
+					this.addManualFallback(row, definition);
+					return;
+				}
+				if (!status.enabled) {
+					if (label) label.textContent = `${definition.name} — installed${version}, disabled`;
+					action.textContent = "Open community plugins";
+					action.disabled = false;
+					action.addEventListener("click", () => this.host.openCommunityPlugins());
+					return;
+				}
+				if (label) label.textContent = `${definition.name} — ready${version}`;
+				action.textContent = "Up to date";
+				action.disabled = true;
+			} catch {
+				if (label) label.textContent = `${definition.name} — status unavailable`;
+				action.textContent = "Open Obsidian plugins";
+				action.disabled = false;
+				action.addEventListener("click", () => this.openCompanionCommunity(definition));
+				this.addManualFallback(row, definition);
+			}
+		}
 
 	private addLocationOption(parent: HTMLElement, value: "root" | "niplex", title: string, path: string, folder: string): void {
 		const label = parent.createEl("label", { cls: "oar-moc-location-option" });
