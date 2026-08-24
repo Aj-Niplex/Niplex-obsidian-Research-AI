@@ -511,23 +511,40 @@ export class AgentView extends ItemView {
 	private trackActivity(label: string): void {
 		if (!label || this.runActivityLabels.at(-1) === label) return;
 		this.runActivityLabels.push(label);
-		if (this.runActivityLabels.length > 8) this.runActivityLabels.shift();
+		if (this.runActivityLabels.length > 24) this.runActivityLabels.shift();
 	}
 
 	private appendActivitySummary(): void {
 		if (!this.runActivityLabels.length) return;
 		const details = this.transcriptEl.createEl("details", { cls: "oar-activity-summary" });
-		details.createEl("summary", { text: `Activity summary · ${this.runActivityLabels.length} bounded actions` });
+		details.createEl("summary", { text: `Runtime · ${this.runActivityLabels.length} steps` });
 		const list = details.createEl("ul");
 		for (const label of this.runActivityLabels) list.createEl("li", { text: label });
 	}
 
+	private summarizeToolActivity(event: AgentEvent): string {
+		const name = event.tool?.name ?? "vault tool";
+		const args = event.tool?.arguments ?? {};
+		if (name === "read_file_chunk" && typeof args.path === "string") {
+			const start = typeof args.startLine === "number" ? Math.max(1, Math.floor(args.startLine)) : 1;
+			const lines = typeof args.maxLines === "number" ? Math.max(1, Math.floor(args.maxLines)) : undefined;
+			return `Read ${args.path}${lines ? ` · lines ${start}–${start + lines - 1}` : ` · from line ${start}`}`;
+		}
+		if (name === "search_vault" && typeof args.query === "string") return `Searched the vault for “${args.query.slice(0, 80)}”`;
+		if (name === "list_files" && typeof args.query === "string") return `Listed notes matching “${args.query.slice(0, 80)}”`;
+		if (name === "read_user_memory") return "Checked user memory because it was relevant";
+		if (name === "update_user_memory") return "Prepared a user-memory update for approval";
+		if (name === "create_note" && typeof args.path === "string") return `Prepared a new note at ${args.path}`;
+		if (name === "append_note" && typeof args.path === "string") return `Prepared an addition to ${args.path}`;
+		return `Used ${name}`;
+	}
+
 	private appendToolEvent(event: AgentEvent): void {
 		const toolName = event.tool?.name ?? "vault tool";
-		const detail = event.result?.content?.replace(/\s+/g, " ").trim().slice(0, 160) ?? "";
-		this.trackActivity(`Used ${toolName}${detail ? `: ${detail}` : ""}`);
+		const activity = this.summarizeToolActivity(event);
+		this.trackActivity(activity);
 		this.setLiveStatus(`Agent used ${toolName} and is checking the bounded result…`);
-		const details = this.setStepSummary(event.step ?? 0, `Using ${toolName}`, false);
+		const details = this.setStepSummary(event.step ?? 0, activity, false);
 		const body = this.stepBody(details);
 		body.empty();
 		body.createEl("small", { text: "Bounded result preview" });

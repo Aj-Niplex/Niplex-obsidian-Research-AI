@@ -46,7 +46,7 @@ function renderMessage(message: ChatMessage): string {
 }
 
 function boundedActivity(activity: string[] | undefined): string[] {
-	return [...new Set((activity ?? []).map((item) => item.trim()).filter(Boolean))].slice(0, 8);
+	return [...new Set((activity ?? []).map((item) => item.trim()).filter(Boolean))].slice(0, 24);
 }
 
 function serializeChat(chat: SavedChat): string {

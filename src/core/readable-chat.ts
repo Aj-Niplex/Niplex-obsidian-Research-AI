@@ -22,7 +22,7 @@ export function parseReadableChat(content: string): Record<string, unknown> | nu
 	}
 	const updated = frontmatterValue(content, "updated");
 	const activitySection = content.match(/\n## Activity summary\s*\n\n([\s\S]*?)(?=\n## (?:You|Agent)\s*\n\n|$)/);
-	const activity = activitySection?.[1]?.split("\n").map((line) => line.replace(/^[-*]\s+/, "").trim()).filter(Boolean).slice(0, 8) ?? [];
+	const activity = activitySection?.[1]?.split("\n").map((line) => line.replace(/^[-*]\s+/, "").trim()).filter(Boolean).slice(0, 24) ?? [];
 	return {
 		id,
 		title: typeof frontmatterValue(content, "title") === "string" ? frontmatterValue(content, "title") : "Research chat",

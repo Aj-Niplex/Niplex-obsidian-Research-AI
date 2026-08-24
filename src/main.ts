@@ -48,7 +48,7 @@ function normalizeChat(value: unknown): SavedChat | null {
 		model: typeof value.model === "string" ? value.model : "",
 		messages,
 		attachments: Array.isArray(value.attachments) ? [...new Set(value.attachments.filter((path): path is string => typeof path === "string").map((path) => path.trim()).filter(Boolean))].slice(0, 8) : [],
-		activity: Array.isArray(value.activity) ? [...new Set(value.activity.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean))].slice(0, 8) : [],
+		activity: Array.isArray(value.activity) ? [...new Set(value.activity.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean))].slice(0, 24) : [],
 	};
 }
 
