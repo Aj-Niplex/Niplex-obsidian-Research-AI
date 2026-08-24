@@ -50,9 +50,9 @@ The following captures show the mobile interaction model, helper marketplace, in
 
 ## Latest release notes
 
-### 0.1.17 — user-controlled chat window size
+### 0.1.18 — Community manifest validation repair
 
-This release adds Compact, Comfortable, and Spacious chat-window profiles under **Actions → Chat window size**. The choice is saved locally and updates the current view immediately. Compact reduces card and composer height, Comfortable keeps a balanced reading layout, and Spacious gives answers and the composer more room. The runtime timeline remains scrollable and the mobile workspace keeps secondary tools behind **Actions**.
+This patch removes the redundant product-name word from the Community manifest description after the automated validator flagged it. The user-facing README and plugin functionality are unchanged: the release retains the Compact, Comfortable, and Spacious chat-window profiles, stoppable runtime, bounded note context, inline commands, and skill controls.
 
 ## Architecture
 
