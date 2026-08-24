@@ -23,6 +23,7 @@ export interface SavedChat {
 	model: string;
 	messages: ChatMessage[];
 	attachments?: string[];
+	activity?: string[];
 }
 
 export interface ToolDefinition {

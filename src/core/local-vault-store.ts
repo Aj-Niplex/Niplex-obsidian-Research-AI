@@ -3,6 +3,7 @@ import { sanitizeVaultPath } from "./path-utils";
 import type { ChatMessage, SavedChat } from "./types";
 import { compactChatMessages } from "./chat-history";
 import { CONTEXT_BUDGETS } from "./context-budget";
+import { parseReadableChat } from "./readable-chat";
 
 export const NIPLEX_ROOT = "NIPLEX-OBSIDIAN";
 export const NIPLEX_CHATS = `${NIPLEX_ROOT}/Chats`;
@@ -44,11 +45,17 @@ function renderMessage(message: ChatMessage): string {
 	return `## ${heading}\n\n${message.content}\n`;
 }
 
+function boundedActivity(activity: string[] | undefined): string[] {
+	return [...new Set((activity ?? []).map((item) => item.trim()).filter(Boolean))].slice(0, 8);
+}
+
 function serializeChat(chat: SavedChat): string {
 	const safeMessages = compactChatMessages(chat.messages);
 	const subject = (chat.subject ?? chat.title).replace(/[#\r\n]/g, " ").trim() || "Research chat";
 	const body = safeMessages.map(renderMessage).join("\n");
-	return `---\nniplex: chat\nid: ${chat.id}\ntitle: ${JSON.stringify(subject)}\nsubject: ${JSON.stringify(subject)}\nupdated: ${chat.updatedAt}\n---\n\n# ${subject}\n\n${body}`;
+	const activity = boundedActivity(chat.activity);
+	const activityBlock = activity.length ? `\n## Activity summary\n\n${activity.map((item) => `- ${item}`).join("\n")}\n` : "";
+	return `---\nniplex: chat\nid: ${chat.id}\ntitle: ${JSON.stringify(subject)}\nsubject: ${JSON.stringify(subject)}\nupdated: ${chat.updatedAt}\n---\n\n# ${subject}\n\n${body}${activityBlock}`;
 }
 
 function serializeRuntimeChat(chat: SavedChat): string {
@@ -58,6 +65,7 @@ function serializeRuntimeChat(chat: SavedChat): string {
 		title: subject,
 		subject,
 		messages: compactChatMessages(chat.messages),
+		activity: boundedActivity(chat.activity),
 	}, null, 2);
 }
 
@@ -73,35 +81,7 @@ function parseChat(content: string): Record<string, unknown> | null {
 	}
 }
 
-function frontmatterValue(content: string, key: string): unknown {
-	const match = content.match(new RegExp(`^${key}:\\s*(.+)$`, "m"));
-	if (!match?.[1]) return undefined;
-	try {
-		return JSON.parse(match[1]);
-	} catch {
-		return match[1].trim();
-	}
-}
 
-function parseReadableChat(content: string): Record<string, unknown> | null {
-	const id = frontmatterValue(content, "id");
-	if (typeof id !== "string" || !id.trim()) return null;
-	const messages: ChatMessage[] = [];
-	const messagePattern = /^## (You|Agent)\s*\n\n([\\s\\S]*?)(?=\n## (?:You|Agent)\s*\n\n|$)/gm;
-	for (const match of content.matchAll(messagePattern)) {
-		const role = match[1] === "You" ? "user" : "assistant";
-		const text = match[2]?.trim();
-		if (text) messages.push({ role, content: text });
-	}
-	const updated = frontmatterValue(content, "updated");
-	return {
-		id,
-		title: typeof frontmatterValue(content, "title") === "string" ? frontmatterValue(content, "title") : "Research chat",
-		subject: typeof frontmatterValue(content, "subject") === "string" ? frontmatterValue(content, "subject") : frontmatterValue(content, "title"),
-		updatedAt: typeof updated === "number" ? updated : Date.now(),
-		messages,
-	};
-}
 
 async function ensureFolder(app: App, path: string): Promise<void> {
 	const parts = path.split("/");
@@ -222,7 +202,7 @@ export class LocalVaultStore {
 	async saveChat(chat: SavedChat): Promise<void> {
 		await this.ensureStructure();
 		const subject = (chat.subject ?? chat.title).replace(/[\r\n]/g, " ").trim() || "Research chat";
-		const safeChat: SavedChat = { ...chat, title: subject, subject, messages: compactChatMessages(chat.messages) };
+		const safeChat: SavedChat = { ...chat, title: subject, subject, messages: compactChatMessages(chat.messages), activity: boundedActivity(chat.activity) };
 		const path = sanitizeVaultPath(chatFilePath(safeChat.id));
 		const runtimePath = sanitizeVaultPath(runtimeChatFilePath(safeChat.id));
 		if (!path || !runtimePath) throw new Error("Invalid local chat path.");

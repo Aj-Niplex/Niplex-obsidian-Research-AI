@@ -48,6 +48,7 @@ function normalizeChat(value: unknown): SavedChat | null {
 		model: typeof value.model === "string" ? value.model : "",
 		messages,
 		attachments: Array.isArray(value.attachments) ? [...new Set(value.attachments.filter((path): path is string => typeof path === "string").map((path) => path.trim()).filter(Boolean))].slice(0, 8) : [],
+		activity: Array.isArray(value.activity) ? [...new Set(value.activity.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean))].slice(0, 8) : [],
 	};
 }
 
@@ -87,6 +88,9 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		}
 
 		this.registerView(AGENT_VIEW_TYPE, (leaf) => new AgentView(leaf, this));
+		// Re-enabling a plugin after Obsidian restored a placeholder does not fire layout-ready again.
+		this.app.workspace.detachLeavesOfType(LEGACY_AGENT_VIEW_TYPE);
+		this.removeStaleAgentLeaves();
 		this.addRibbonIcon("search", "Open agentic research", () => void this.activateView());
 		this.addCommand({
 			id: "open-agentic-research",
@@ -120,8 +124,9 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		});
 		this.addSettingTab(new AgenticResearchSettingTab(this.app, this));
 		this.app.workspace.onLayoutReady(() => {
-			// Obsidian can restore the old persisted leaf before the new view registration is ready; remove only that obsolete placeholder.
+			// Remove old and unresolved restored leaves, but keep a real AgentView if Obsidian recreated it successfully.
 			this.app.workspace.detachLeavesOfType(LEGACY_AGENT_VIEW_TYPE);
+			this.removeStaleAgentLeaves();
 			if (!this.settings.onboardingCompleted) window.setTimeout(() => this.openWalkthrough(), 250);
 		});
 	}
@@ -440,9 +445,20 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		return new ApprovalModal(this.app, tool, call).confirm();
 	}
 
+	private isLiveAgentLeaf(leaf: WorkspaceLeaf): boolean {
+		return leaf.view instanceof AgentView || leaf.view.getDisplayText() === "Agentic research";
+	}
+
+	private removeStaleAgentLeaves(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(AGENT_VIEW_TYPE)) {
+			if (!this.isLiveAgentLeaf(leaf)) leaf.detach();
+		}
+	}
+
 	private async activateView(): Promise<void> {
 		const { workspace } = this.app;
-		let leaf: WorkspaceLeaf | undefined = workspace.getLeavesOfType(AGENT_VIEW_TYPE)[0];
+		this.removeStaleAgentLeaves();
+		let leaf: WorkspaceLeaf | undefined = workspace.getLeavesOfType(AGENT_VIEW_TYPE).find((candidate) => this.isLiveAgentLeaf(candidate));
 		if (!leaf) {
 			leaf = Platform.isMobile ? workspace.getLeaf("tab") : workspace.getRightLeaf(false) ?? workspace.getLeaf("tab");
 			await leaf.setViewState({ type: AGENT_VIEW_TYPE, active: true });

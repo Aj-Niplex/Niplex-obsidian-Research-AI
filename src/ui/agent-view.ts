@@ -403,6 +403,8 @@ export class AgentView extends ItemView {
 		this.transcriptEl.empty();
 		this.activeStep = null;
 		this.busyEl = null;
+		this.runActivityLabels = [...(this.currentChat.activity ?? [])];
+		this.finalAnswerRendered = this.currentChat.messages.some((message) => message.role === "assistant" && Boolean(message.content));
 		const subject = this.currentChat.subject ?? this.currentChat.title;
 		const loadedMessage = this.currentChat.messages.length ? `Loaded “${subject}”.` : "Ready. Start with a focused research question.";
 		this.setLiveStatus(loadedMessage);
@@ -412,6 +414,7 @@ export class AgentView extends ItemView {
 			else if (message.role === "assistant" && message.content && !message.toolCalls?.length) this.appendAssistant(message.content);
 			else if (message.role === "tool") this.appendSavedTool(message);
 		}
+		if (this.runActivityLabels.length) this.appendActivitySummary();
 	}
 
 	private async saveCurrentChat(): Promise<void> {
@@ -521,7 +524,8 @@ export class AgentView extends ItemView {
 
 	private appendToolEvent(event: AgentEvent): void {
 		const toolName = event.tool?.name ?? "vault tool";
-		this.trackActivity(`Used ${toolName}`);
+		const detail = event.result?.content?.replace(/\s+/g, " ").trim().slice(0, 160) ?? "";
+		this.trackActivity(`Used ${toolName}${detail ? `: ${detail}` : ""}`);
 		this.setLiveStatus(`Agent used ${toolName} and is checking the bounded result…`);
 		const details = this.setStepSummary(event.step ?? 0, `Using ${toolName}`, false);
 		const body = this.stepBody(details);
@@ -664,12 +668,14 @@ export class AgentView extends ItemView {
 				this.currentChat.subject = result.subject;
 			}
 			this.currentChat.messages = compactChatMessages([...history, { role: "user", content: prompt }, { role: "assistant", content: result.text }]);
+			this.currentChat.activity = [...this.runActivityLabels];
 			await this.host.saveChat(this.currentChat);
 		} catch (error) {
 			this.continueButton.disabled = true;
 			const message = error instanceof Error ? error.message : "Agent run failed.";
 			this.appendEvent({ type: "error", phase: "error", message });
 			this.currentChat.messages = compactChatMessages([...this.currentChat.messages, { role: "assistant", content: message }]);
+			this.currentChat.activity = [...this.runActivityLabels];
 			this.currentChatPersisted = true;
 			try {
 				await this.host.saveChat(this.currentChat);
