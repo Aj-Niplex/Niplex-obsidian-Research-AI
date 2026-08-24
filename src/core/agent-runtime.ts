@@ -1,4 +1,4 @@
-import { providerErrorMessage } from "./provider-errors";
+import { ProviderRequestError, providerErrorMessage } from "./provider-errors";
 import { completeWithModelFallback } from "./model-fallback";
 import type { AgentSettings, ChatMessage, ToolCall, ToolDefinition, ToolResult, ProviderAdapter } from "./types";
 import { VaultContext } from "./vault-context";
@@ -93,6 +93,7 @@ export class AgentRuntime {
 		approve: ApprovalHandler,
 		emit: (event: AgentEvent) => void,
 		history: ChatMessage[] = [],
+		signal?: AbortSignal,
 	): Promise<AgentRunResult> {
 		const messages: ChatMessage[] = protectHistory(history.map(cloneMessage), this.settings.userSystemPrompt);
 		const boundedPrompt = boundText(prompt.trim(), CONTEXT_BUDGETS.maxRequestMessageChars);
@@ -102,8 +103,13 @@ export class AgentRuntime {
 		let generatedSubject: string | undefined;
 		const executedToolKeys = new Set<string>();
 		let activeModel = configuredModel(this.settings);
-		for (let iteration = 1; iteration <= this.settings.maxIterations; iteration += 1) {
-			trimHistory(messages);
+			for (let iteration = 1; iteration <= this.settings.maxIterations; iteration += 1) {
+				if (signal?.aborted) {
+					const message = "Run stopped by the user.";
+					emit({ type: "status", phase: "complete", step: iteration, message });
+					return { text: message, messages, model: activeModel, stopped: true };
+				}
+				trimHistory(messages);
 				emit({
 					type: "status",
 					phase: "thinking",
@@ -116,7 +122,7 @@ export class AgentRuntime {
 			try {
 				const completed = await completeWithModelFallback(
 					this.provider,
-							{ model: activeModel, messages: messagesForProvider(messages), tools: this.tools },
+							{ model: activeModel, messages: messagesForProvider(messages), tools: this.tools, signal },
 						{
 							enabled: this.settings.autoFallbackOnRateLimit,
 							configuredFallbackModels: configuredFallbackModels(this.settings),
@@ -138,8 +144,13 @@ export class AgentRuntime {
 				);
 				activeModel = completed.model;
 				response = completed.response;
-			} catch (error) {
-						const message = `Provider request failed on ${activeModel}: ${safeError(error)} Try the visible Retry action or switch models from Actions.`;
+				} catch (error) {
+							if (signal?.aborted || (error instanceof ProviderRequestError && error.code === "run_stopped")) {
+								const message = "Run stopped by the user.";
+								emit({ type: "status", phase: "complete", step: iteration, message });
+								return { text: message, messages, model: activeModel, stopped: true };
+							}
+							const message = `Provider request failed on ${activeModel}: ${safeError(error)} Try the visible Retry action or switch models from Actions.`;
 						emit({ type: "error", phase: "error", step: iteration, message });
 					this.onDiagnostic?.("error", "provider-request-failed", message, activeModel);
 					return { text: message, messages, model: activeModel };
@@ -206,13 +217,23 @@ export class AgentRuntime {
 				continue;
 			}
 
-			let result: ToolResult;
-			try {
-				result = await this.vaultContext.executeTool(call.name, call.arguments);
+				if (signal?.aborted) {
+					const message = "Run stopped by the user.";
+					emit({ type: "status", phase: "complete", step: iteration, message });
+					return { text: message, messages, model: activeModel, stopped: true };
+				}
+				let result: ToolResult;
+				try {
+					result = await this.vaultContext.executeTool(call.name, call.arguments);
 			} catch (error) {
 				result = { ok: false, isError: true, content: `Tool failed: ${safeError(error)}` };
 			}
-			const bounded = { ...result, content: capText(result.content, this.settings.maxToolResultChars) };
+				if (signal?.aborted) {
+					const message = "Run stopped by the user.";
+					emit({ type: "status", phase: "complete", step: iteration, message });
+					return { text: message, messages, model: activeModel, stopped: true };
+				}
+				const bounded = { ...result, content: capText(result.content, this.settings.maxToolResultChars) };
 			messages.push({ role: "tool", content: bounded.content, toolCallId: call.id, toolName: call.name });
 			emit({ type: "tool", phase: "tool", step: iteration, message: bounded.content, tool: call, result: bounded });
 		}

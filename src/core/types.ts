@@ -1,6 +1,7 @@
 export type ProviderId = "gemini" | "agnes";
 export type ResearchMode = "plan" | "chat" | "edit";
 export type QuickActionId = "history" | "attach" | "moc" | "continue" | "prompts" | "logs";
+export type OutputSize = "lowest" | "low" | "standard" | "high" | "maximum";
 
 export type Role = "system" | "user" | "assistant" | "tool";
 
@@ -24,6 +25,7 @@ export interface SavedChat {
 	messages: ChatMessage[];
 	attachments?: string[];
 	activity?: string[];
+	skillCodes?: string[];
 }
 
 export interface ToolDefinition {
@@ -44,6 +46,7 @@ export interface ProviderRequest {
 	model: string;
 	messages: ChatMessage[];
 	tools: ToolDefinition[];
+	signal?: AbortSignal;
 }
 
 export interface ProviderResponse {
@@ -92,6 +95,15 @@ export interface SearchHit {
 	path: string;
 	line: number;
 	snippet: string;
+}
+
+export interface InstalledSkill {
+	code: string;
+	name: string;
+	version: string;
+	description: string;
+	prompt: string;
+	settingsPatch: Partial<Pick<AgentSettings, "maxIterations" | "maxReadLines" | "maxToolResultChars">>;
 }
 
 export interface ToolResult {
@@ -147,6 +159,7 @@ export interface AgentSettings {
 	writeApprovalPolicy: WriteApprovalPolicy;
 	quickActions: QuickActionId[];
 	researchMode: ResearchMode;
+	outputSize: OutputSize;
 	onboardingVersion: number;
 	onboardingCompleted: boolean;
 }
@@ -171,6 +184,7 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	writeApprovalPolicy: { mode: "always", expiresAt: 0, pathPrefix: "", tools: [] },
 	quickActions: ["history", "moc", "prompts"],
 	researchMode: "chat",
+	outputSize: "standard",
 	onboardingVersion: 0,
 	onboardingCompleted: false,
 };

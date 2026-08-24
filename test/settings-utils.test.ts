@@ -49,6 +49,11 @@ test("keeps a fresh install incomplete until walkthrough completion is saved", (
 	assert.equal(normalizeAgentSettings({ onboardingCompleted: true }).onboardingCompleted, true);
 });
 
+test("normalizes the output-size preference", () => {
+	assert.equal(normalizeAgentSettings({ outputSize: "maximum" }).outputSize, "maximum");
+	assert.equal(normalizeAgentSettings({ outputSize: "unsupported" }).outputSize, "standard");
+});
+
 test("keeps the quick-action bar to three valid icons and defaults legacy mode to chat", () => {
 	const settings = normalizeAgentSettings({
 		quickActions: ["moc", "history", "logs", "attach", "moc", "unknown"],

@@ -99,6 +99,25 @@ test("prefers fast modern catalogue models over Gemma or older pro models", asyn
 	assert.deepEqual(provider.attempted, ["primary", "gemini-3.7-flash"]);
 });
 
+test("stops an in-flight model attempt without starting fallback", async () => {
+	const controller = new AbortController();
+	const attempted: string[] = [];
+	const provider: ProviderAdapter = {
+		id: "gemini",
+		async complete(next: ProviderRequest): Promise<ProviderResponse> {
+			attempted.push(next.model);
+			return await new Promise<ProviderResponse>(() => undefined);
+		},
+		async listModels(): Promise<ProviderModel[]> {
+			return [{ id: "primary", label: "Primary" }, { id: "preferred-backup", label: "Preferred backup" }];
+		},
+	};
+	const pending = completeWithModelFallback(provider, { ...request, signal: controller.signal }, { enabled: true, configuredFallbackModels: ["preferred-backup"] });
+	controller.abort();
+	await assert.rejects(pending, (error: unknown) => error instanceof ProviderRequestError && error.code === "run_stopped");
+	assert.deepEqual(attempted, ["primary"]);
+});
+
 test("uses the live catalogue when no configured fallback order is provided", async () => {
 	const provider = new FakeProvider({ primary: new ProviderRequestError("resource exhausted", 429), "preferred-backup": new ProviderRequestError("rate limit", 429), "catalogue-backup": { text: "second recovery", toolCalls: [] } });
 	const result = await completeWithModelFallback(provider, request, { enabled: true, configuredFallbackModels: [] });

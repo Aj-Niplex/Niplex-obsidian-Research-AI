@@ -1,6 +1,6 @@
 import { ItemView, MarkdownRenderer, Notice, setIcon, WorkspaceLeaf } from "obsidian";
 import type { AgentEvent, AgentRunResult } from "../core/agent-runtime";
-import type { AgentSettings, ChatMessage, ProviderId, ProviderModel, QuickActionId, SavedChat } from "../core/types";
+import type { AgentSettings, ChatMessage, InstalledSkill, ProviderId, ProviderModel, QuickActionId, SavedChat } from "../core/types";
 import { CONTEXT_BUDGETS } from "../core/context-budget";
 import { compactChatMessages } from "../core/chat-history";
 import { deriveChatSubject } from "../core/chat-subject";
@@ -10,6 +10,7 @@ import { ActionSheetModal, type ActionSheetHost } from "./action-sheet-modal";
 import { AttachmentChoiceModal } from "./attachment-choice-modal";
 import type { AttachmentMode } from "./file-picker-modal";
 import { ChatHistoryModal } from "./chat-history-modal";
+import { SkillSelectorModal, type SkillSelection } from "./skill-selector-modal";
 
 export const AGENT_VIEW_TYPE = "niplex-agentic-research-view";
 export const LEGACY_AGENT_VIEW_TYPE = "obsidian-agentic-research-view";
@@ -17,7 +18,7 @@ export const LEGACY_AGENT_VIEW_TYPE = "obsidian-agentic-research-view";
 export interface AgentViewHost extends MocHost, FilePickerHost {
 	settings: AgentSettings;
 	saveSettings(): Promise<void>;
-	runAgent(prompt: string, history: ChatMessage[], emit: (event: AgentEvent) => void, attachedFiles?: string[], conversationSubject?: string, recentSubjects?: string[]): Promise<AgentRunResult>;
+	runAgent(prompt: string, history: ChatMessage[], emit: (event: AgentEvent) => void, attachedFiles?: string[], conversationSubject?: string, recentSubjects?: string[], selectedSkillCodes?: string[], signal?: AbortSignal): Promise<AgentRunResult>;
 	getChats(): SavedChat[];
 	getChat(id: string): SavedChat | null;
 	getModelCatalogue(provider: ProviderId, forceRefresh?: boolean): Promise<ProviderModel[]>;
@@ -26,6 +27,7 @@ export interface AgentViewHost extends MocHost, FilePickerHost {
 	openMemoryFile(): Promise<void>;
 	saveChat(chat: SavedChat): Promise<void>;
 	deleteChat(id: string): Promise<void>;
+	getInstalledSkills(): Promise<InstalledSkill[]>;
 }
 
 function newChat(): SavedChat {
@@ -40,6 +42,7 @@ function newChat(): SavedChat {
 		model: "",
 		messages: [],
 		attachments: [],
+		skillCodes: [],
 	};
 }
 
@@ -48,6 +51,7 @@ export class AgentView extends ItemView {
 	private transcriptEl!: HTMLElement;
 	private inputEl!: HTMLTextAreaElement;
 	private runButton!: HTMLButtonElement;
+	private stopButton!: HTMLButtonElement;
 	private continueButton!: HTMLButtonElement;
 	private attachButton!: HTMLButtonElement;
 	private attachmentListEl!: HTMLElement;
@@ -66,6 +70,9 @@ export class AgentView extends ItemView {
 	private liveStatusEl: HTMLElement | null = null;
 	private runActivityLabels: string[] = [];
 	private finalAnswerRendered = false;
+	private activeAbortController: AbortController | null = null;
+	private skillSelectionEl!: HTMLElement;
+	private selectedSkillCodes: string[] = [];
 
 	constructor(leaf: WorkspaceLeaf, host: AgentViewHost) {
 		super(leaf);
@@ -107,11 +114,13 @@ export class AgentView extends ItemView {
 		this.renderCurrentChat();
 
 		const composer = root.createDiv({ cls: "oar-composer" });
-		composer.createDiv({
-			cls: "oar-composer-hint",
-			text: "Ask one focused question. Add context only when you need it.",
-		});
-		const composerEntry = composer.createDiv({ cls: "oar-composer-entry" });
+					composer.createDiv({
+				cls: "oar-composer-hint",
+				text: "Ask one focused question. Use @path/to/note.md for context or type /skill to choose skills and answer size.",
+			});
+			this.skillSelectionEl = composer.createDiv({ cls: "oar-skill-selection" });
+			this.renderSkillSelection();
+			const composerEntry = composer.createDiv({ cls: "oar-composer-entry" });
 		this.inputEl = composerEntry.createEl("textarea", {
 			attr: {
 				rows: "4",
@@ -127,19 +136,32 @@ export class AgentView extends ItemView {
 		});
 		setIcon(this.attachButton, "plus");
 		this.attachButton.addEventListener("click", () => this.openAttachmentChoice());
-		this.runButton = composerSide.createEl("button", {
-			cls: "mod-cta oar-run-button",
-			attr: { "aria-label": "Run agent", title: "Run agent", type: "button" },
-		});
-		setIcon(this.runButton, "arrow-up");
-		this.runButton.addEventListener("click", () => void this.submit());
+			this.runButton = composerSide.createEl("button", {
+				cls: "mod-cta oar-run-button",
+				attr: { "aria-label": "Run agent", title: "Run agent", type: "button" },
+			});
+			setIcon(this.runButton, "arrow-up");
+			this.runButton.addEventListener("click", () => void this.submit());
+			this.stopButton = composerSide.createEl("button", {
+				cls: "oar-stop-button",
+				attr: { "aria-label": "Stop run", title: "Stop run", type: "button", hidden: "true" },
+			});
+			setIcon(this.stopButton, "square");
+			this.stopButton.addEventListener("click", () => this.stopRun());
 
 		const queryCounter = composer.createDiv({ cls: "oar-query-counter", attr: { "aria-live": "polite" } });
 		const updateQueryCounter = () => {
 			queryCounter.textContent = `${this.inputEl.value.length.toLocaleString()} / ${CONTEXT_BUDGETS.maxUserPromptChars.toLocaleString()} characters`;
 		};
-		this.inputEl.addEventListener("input", updateQueryCounter);
-		updateQueryCounter();
+			this.inputEl.addEventListener("input", updateQueryCounter);
+			this.inputEl.addEventListener("input", () => {
+				if (this.inputEl.value.trim().toLowerCase() === "/skill") {
+					this.inputEl.value = "";
+					updateQueryCounter();
+					void this.openSkillSelector();
+				}
+			});
+			updateQueryCounter();
 
 		this.attachmentListEl = composer.createDiv({ cls: "oar-attachment-list" });
 		this.renderAttachmentChips();
@@ -211,6 +233,50 @@ export class AgentView extends ItemView {
 		this.modeSelectEl.value = this.host.settings.researchMode;
 		this.modeSelectEl.addEventListener("change", () => void this.changeResearchMode(this.modeSelectEl.value as AgentSettings["researchMode"]));
 		void this.refreshModelPicker();
+	}
+
+	private renderSkillSelection(): void {
+		if (!this.skillSelectionEl) return;
+		this.skillSelectionEl.empty();
+		const selected = this.selectedSkillCodes.length ? this.selectedSkillCodes.join(", ") : "None";
+		const button = this.skillSelectionEl.createEl("button", { text: `Skills: ${selected}`, cls: "oar-skill-selection-button", attr: { type: "button", "aria-label": "Choose skills and answer size" } });
+		button.addEventListener("click", () => void this.openSkillSelector());
+	}
+
+	private async openSkillSelector(): Promise<void> {
+		new SkillSelectorModal(this.app, { settings: this.host.settings, getInstalledSkills: () => this.host.getInstalledSkills() }, this.selectedSkillCodes, (selection: SkillSelection) => {
+			this.selectedSkillCodes = [...new Set(selection.codes)].slice(0, 8);
+			this.currentChat.skillCodes = [...this.selectedSkillCodes];
+			this.host.settings.outputSize = selection.outputSize;
+			this.renderSkillSelection();
+			void this.host.saveSettings();
+			if (this.currentChat.messages.length) void this.host.saveChat(this.currentChat);
+		}).open();
+	}
+
+	private stopRun(): void {
+		if (!this.requestInFlight || !this.activeAbortController) return;
+		this.activeAbortController.abort();
+		this.setLiveStatus("Stopping the run…");
+		this.stopButton.disabled = true;
+		const busyText = this.busyEl?.querySelector<HTMLElement>(".oar-busy-text");
+		if (busyText) busyText.textContent = "Stopping after the current safe operation…";
+	}
+
+	private resolveInlineAttachments(prompt: string): { prompt: string; attachments: string[] } {
+		const mentions = [...prompt.matchAll(/(?:^|\s)@([^\s,;]+)/g)].map((match) => match[1]?.replace(/[)\]}>,.!?]+$/, "") ?? "").filter(Boolean);
+		if (!mentions.length) return { prompt, attachments: [] };
+		const resolved: string[] = [];
+		for (const mention of mentions) {
+			const exactFile = this.host.searchMarkdownPaths(mention, 120).find((path) => path.toLowerCase() === mention.toLowerCase());
+			if (exactFile) {
+				resolved.push(exactFile);
+				continue;
+			}
+			const folder = this.host.getMarkdownFolders(120).find((path) => path.toLowerCase() === mention.replace(/\/$/, "").toLowerCase());
+			if (folder) resolved.push(...this.host.getMarkdownFilesInFolder(folder, 8));
+		}
+		return { prompt, attachments: [...new Set(resolved)].slice(0, 8) };
 	}
 
 	private async runQuickAction(action: QuickActionId): Promise<void> {
@@ -288,8 +354,9 @@ export class AgentView extends ItemView {
 		if (!id || id === this.currentChat.id) return;
 		const chat = this.host.getChat(id);
 		if (!chat) return;
-		this.currentChat = { ...chat, attachments: [...(chat.attachments ?? [])], messages: [...chat.messages] };
-		this.runActivityLabels = [];
+			this.currentChat = { ...chat, attachments: [...(chat.attachments ?? [])], skillCodes: [...(chat.skillCodes ?? [])], messages: [...chat.messages] };
+			this.selectedSkillCodes = [...(chat.skillCodes ?? [])];
+			this.runActivityLabels = [];
 		this.finalAnswerRendered = false;
 		this.currentChatPersisted = true;
 		this.host.settings.provider = chat.provider;
@@ -304,8 +371,9 @@ export class AgentView extends ItemView {
 	}
 
 	private startNewChat(): void {
-		this.currentChat = newChat();
-		this.runActivityLabels = [];
+			this.currentChat = newChat();
+			this.selectedSkillCodes = [];
+			this.runActivityLabels = [];
 		this.finalAnswerRendered = false;
 		this.setLiveStatus("Ready for your next question.");
 		this.currentChat.provider = this.host.settings.provider;
@@ -314,12 +382,13 @@ export class AgentView extends ItemView {
 		this.lastPrompt = "";
 		this.lastRunErrorText = "";
 		this.lastErrorEl = null;
-		this.renderCurrentChat();
-		this.renderAttachmentChips();
-		this.renderQuickBar();
-	}
+			this.renderCurrentChat();
+			this.renderAttachmentChips();
+			this.renderSkillSelection();
+			this.renderQuickBar();
+		}
 
-	private openAttachmentChoice(): void {
+		private openAttachmentChoice(): void {
 		new AttachmentChoiceModal(this.app, () => this.openFilePicker("files"), () => this.openFilePicker("folder")).open();
 	}
 
@@ -636,6 +705,9 @@ export class AgentView extends ItemView {
 		this.liveStatusEl?.toggleClass("is-running", submitting);
 		this.liveStatusEl?.setAttribute("aria-busy", submitting ? "true" : "false");
 		this.runButton.disabled = submitting;
+		this.runButton.hidden = submitting;
+		this.stopButton.hidden = !submitting;
+		this.stopButton.disabled = false;
 		this.continueButton.disabled = submitting || this.continueButton.disabled;
 		this.inputEl.disabled = submitting;
 		this.attachButton.disabled = submitting;
@@ -646,29 +718,38 @@ export class AgentView extends ItemView {
 		} else {
 			this.runButton.empty();
 			setIcon(this.runButton, "arrow-up");
-			this.runButton.setAttribute("aria-label", "Run agent");
+				this.runButton.setAttribute("aria-label", "Run agent");
+				this.runButton.setAttribute("title", "Run agent");
+			}
 		}
-	}
 
-	private async submit(): Promise<void> {
-		const prompt = this.inputEl.value.trim();
-		if (!prompt || this.requestInFlight) return;
-		this.lastPrompt = prompt;
+		private async submit(): Promise<void> {
+			const prompt = this.inputEl.value.trim();
+			if (!prompt || this.requestInFlight) return;
+			const inline = this.resolveInlineAttachments(prompt);
+			const attachments = [...new Set([...(this.currentChat.attachments ?? []), ...inline.attachments])].slice(0, 8);
+			if (inline.attachments.length) {
+				this.currentChat.attachments = attachments;
+				this.renderAttachmentChips();
+			}
+			this.lastPrompt = prompt;
 		this.lastRunErrorText = "";
 		this.lastErrorEl?.remove();
 		this.lastErrorEl = null;
 		this.inputEl.value = "";
 		this.inputEl.dispatchEvent(new Event("input"));
-		const history = compactChatMessages(this.currentChat.messages);
-		const attachments = [...(this.currentChat.attachments ?? [])];
-		const previousSubject = this.currentChat.subject ?? this.currentChat.title;
+					const history = compactChatMessages(this.currentChat.messages);
+			const previousSubject = this.currentChat.subject ?? this.currentChat.title;
 		this.appendUser(prompt);
 		this.currentChat.messages.push({ role: "user", content: prompt });
 		const subject = deriveChatSubject(prompt, previousSubject);
 		this.currentChat.title = subject;
-		this.currentChat.subject = subject;
-		this.runActivityLabels = ["Sent a bounded request"];
-		this.finalAnswerRendered = false;
+			this.currentChat.subject = subject;
+			this.currentChat.skillCodes = [...this.selectedSkillCodes];
+			this.runActivityLabels = ["Sent a bounded request"];
+			const controller = new AbortController();
+			this.activeAbortController = controller;
+			this.finalAnswerRendered = false;
 		this.runStartedAt = Date.now();
 		this.currentChatPersisted = true;
 		this.showImmediateBusy();
@@ -676,10 +757,18 @@ export class AgentView extends ItemView {
 		try {
 			await this.host.saveChat(this.currentChat);
 			const recentSubjects = this.host.getChats().map((chat) => chat.subject ?? chat.title).filter((value) => value && value !== subject).slice(-6);
-			const result = await this.host.runAgent(prompt, history, (event) => this.appendEvent(event), attachments, subject, recentSubjects);
-			this.currentChat.model = result.model;
-			this.currentChat.attachments = attachments;
-			this.continueButton.disabled = !result.stopped;
+				const result = await this.host.runAgent(prompt, history, (event) => this.appendEvent(event), attachments, subject, recentSubjects, this.selectedSkillCodes, controller.signal);
+				this.currentChat.model = result.model;
+				this.currentChat.attachments = attachments;
+				this.currentChat.skillCodes = [...this.selectedSkillCodes];
+				if (result.stopped && !this.finalAnswerRendered) {
+					this.appendAssistant(result.text);
+					this.trackActivity("Run stopped by user");
+					this.appendActivitySummary();
+					this.finalAnswerRendered = true;
+					this.setLiveStatus("Run stopped.");
+				}
+				this.continueButton.disabled = !result.stopped;
 			if (result.subject) {
 				this.currentChat.title = result.subject;
 				this.currentChat.subject = result.subject;
@@ -699,8 +788,9 @@ export class AgentView extends ItemView {
 			} catch {
 				// Keep the visible error even if the vault is temporarily unavailable.
 			}
-		} finally {
-			const remainingStatusMs = Math.max(0, 650 - (Date.now() - this.runStartedAt));
+					} finally {
+				this.activeAbortController = null;
+				const remainingStatusMs = Math.max(0, 650 - (Date.now() - this.runStartedAt));
 			if (remainingStatusMs) await new Promise<void>((resolve) => window.setTimeout(resolve, remainingStatusMs));
 			this.busyEl?.remove();
 			this.busyEl = null;

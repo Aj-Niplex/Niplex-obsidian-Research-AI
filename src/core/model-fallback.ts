@@ -87,15 +87,30 @@ function nextCandidate(
 	return (fastChatModels.length ? fastChatModels : ranked)[0] ?? null;
 }
 
+function throwIfAborted(signal?: AbortSignal): void {
+	if (signal?.aborted) throw new ProviderRequestError("Run stopped by the user.", 499, "run_stopped");
+}
+
 async function completeWithTimeout(provider: ProviderAdapter, request: ProviderRequest, timeoutMs: number): Promise<ProviderResponse> {
-	let timeoutHandle: number | undefined;
+	const setTimer = typeof window === "undefined" ? setTimeout : window.setTimeout.bind(window);
+	const clearTimer = typeof window === "undefined" ? clearTimeout : window.clearTimeout.bind(window);
+	let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+	let abortHandler: (() => void) | undefined;
 	const timeout = new Promise<never>((_, reject) => {
-		timeoutHandle = window.setTimeout(() => reject(new ProviderRequestError(`Model request timed out after ${Math.round(timeoutMs / 1000)} seconds.`, 408, "request_timeout")), timeoutMs);
+		timeoutHandle = setTimer(() => reject(new ProviderRequestError(`Model request timed out after ${Math.round(timeoutMs / 1000)} seconds.`, 408, "request_timeout")), timeoutMs);
+	});
+	const stopped = new Promise<never>((_, reject) => {
+		if (!request.signal) return;
+		abortHandler = () => reject(new ProviderRequestError("Run stopped by the user.", 499, "run_stopped"));
+		if (request.signal.aborted) abortHandler();
+		else request.signal.addEventListener("abort", abortHandler, { once: true });
 	});
 	try {
-		return await Promise.race([provider.complete(request), timeout]);
+		throwIfAborted(request.signal);
+		return await Promise.race([provider.complete(request), timeout, stopped]);
 	} finally {
-		if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle);
+		if (timeoutHandle !== undefined) clearTimer(timeoutHandle);
+		if (abortHandler && request.signal) request.signal.removeEventListener("abort", abortHandler);
 	}
 }
 
@@ -123,6 +138,7 @@ export async function completeWithModelFallback(
 	let lastFallbackError: unknown = null;
 
 	while (true) {
+		throwIfAborted(request.signal);
 		const blocked = activeCooldown(provider, activeModel, cooldowns);
 		if (blocked) {
 			if (!options.enabled) throw new ProviderRequestError(`Model ${activeModel} is cooling down. Automatic fallback is disabled.`, 429, "model_cooling_down");
@@ -131,7 +147,7 @@ export async function completeWithModelFallback(
 		} else {
 			attempted.add(activeModel);
 			try {
-				return { response: await completeWithTimeout(provider, { ...request, model: activeModel }, requestTimeoutMs), model: activeModel };
+					return { response: await completeWithTimeout(provider, { ...request, model: activeModel }, requestTimeoutMs), model: activeModel };
 				} catch (error) {
 					const isTimeout = error instanceof ProviderRequestError && error.code === "request_timeout";
 					const isTransient = isTransientProviderError(error);
@@ -144,10 +160,12 @@ export async function completeWithModelFallback(
 		}
 
 		options.onEvent?.({ type: "checking", from: activeModel });
-		if (!catalogueChecked) {
-			catalogueChecked = true;
-			catalogue = await loadCatalogue(provider);
-		}
+			if (!catalogueChecked) {
+				catalogueChecked = true;
+				throwIfAborted(request.signal);
+				catalogue = await loadCatalogue(provider);
+				throwIfAborted(request.signal);
+			}
 		const nextModel = nextCandidate(provider, attempted, uniqueModels(options.configuredFallbackModels), catalogue, cooldowns);
 		if (!nextModel) {
 			if (lastFallbackError instanceof ProviderRequestError && lastFallbackError.code === "all_models_cooling_down") throw lastFallbackError;

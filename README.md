@@ -13,6 +13,7 @@ The plugin searches note names and metadata first, opens bounded line windows wh
 | Capability | Behavior |
 |---|---|
 | Autonomous research loop | Plans bounded steps, searches the vault, reads relevant line windows, and returns an evidence-grounded answer. |
+| Stoppable runtime | Shows a Claude-like action timeline and lets the user stop a run; stopping prevents the next model/tool step and preserves the safe stopped summary. |
 | Mobile-first workspace | Keeps the conversation and composer visible while secondary controls live behind **Actions** and compact icon controls. |
 | Provider choice | Supports user-entered Gemini and Agnes API keys stored in Obsidian SecretStorage. |
 | Recovery from busy models | Rate limits, timeouts, temporary high-demand responses, and unavailable models trigger a visible cooldown and optional same-provider fallback. |
@@ -23,14 +24,35 @@ The plugin searches note names and metadata first, opens bounded line windows wh
 | Research modes | **Plan** and **Chat** are read-only. **Create & edit** is required before a write tool can be considered, and writes still require approval unless a narrow timed policy is explicitly configured. |
 | Quick actions | Users choose up to three icon actions for the left side of the quick bar. The model selector and research-mode selector remain directly beside them. |
 | AI-discovered MOCs | Finds categories from bounded note context, allows multi-category membership, and checkpoints long runs so they can resume safely. |
-| Skills | The optional helper installs only reviewed, instruction-only packages after code lookup, digest verification, preview, and explicit approval. |
+| Skills | The optional helper downloads and installs reviewed instruction-only packages after code lookup, digest verification, preview, and explicit approval. Installed packages appear in the `/skill` selector without requiring a main-plugin restart. |
+| Inline controls | Type `@path/to/note.md` or `@Folder/` to add bounded vault context directly. Type `/skill` to choose built-in or installed skills and set answer size from Lowest to Maximum. |
 | Public video input | Detects one public YouTube URL in a focused question and sends it to Gemini as a bounded `fileData.fileUri` video part. Agnes receives the URL as text because its current adapter does not claim native video input. |
 
 ## Mobile interaction model
 
-The main view keeps the conversation visible and moves less frequent controls behind **Actions**. The quick-action bar holds up to three icons, followed by the model and mode selectors. The composer stays at the bottom: the text field is on the left, with context and send controls on the right.
+The main view keeps the conversation visible and moves less frequent controls behind **Actions**. The quick-action bar holds up to three icons, followed by the model and mode selectors. The composer stays at the bottom: the text field is on the left, with context and send controls on the right. While a run is active, the send control becomes a red **Stop** control.
+
+Type `@` followed by an exact Markdown path or vault folder path to add it directly to the next run. The parser resolves only safe vault-relative paths, limits the result to eight Markdown files, and leaves unresolved mentions as normal text. Type `/skill` to open the mobile skill selector, choose skills, and set the answer-size preference without leaving the composer. Helper-installed skills are refreshed from `NIPLEX-OBSIDIAN/Skills/` each time the selector opens.
 
 Tap `+` to choose **Files** or **Folder**. A folder contributes at most eight Markdown paths; it is not uploaded wholesale. The **Actions** sheet contains MOC building, saved-chat management, prompt inspection, logs, and quick-action configuration.
+
+## Mobile screenshots
+
+The following captures show the mobile interaction model, helper marketplace, inline skill command, and Obsidian installation flow. Runtime cards are action summaries rather than private chain-of-thought, and the Stop control appears while a run is active.
+
+![Runtime timeline and mobile composer](docs/screenshots/runtime-timeline.png)
+
+![Niplex skill marketplace preview](docs/screenshots/helper-marketplace.png)
+
+![Inline `/skill` command](docs/screenshots/skill-command.png)
+
+![Obsidian Community installation](docs/screenshots/community-install.png)
+
+## Latest release notes
+
+### 0.1.15 — mobile control and skills workflow
+
+This release adds a visible Stop control for active runs, cooperative abort handling across model fallback and bounded vault steps, direct `@path` and `@folder` context references, a `/skill` selector with built-in and Helper-installed skills, five answer-size levels, immediate installed-skill refresh, clearer Helper download/install feedback, and consistent Aj-Niplex branding. The release also adds the mobile screenshots above. No private prompts, API keys, raw tool payloads, or hidden chain-of-thought are persisted.
 
 ## Architecture
 
@@ -161,9 +183,7 @@ The optional Niplex Skills Helper (https://github.com/Aj-Niplex/niplex-obsidian-
 https://raw.githubusercontent.com/Aj-Niplex/Niplex-Obsidian-skills/main/catalogue.json
 ```
 
-Enter a five-character code such as `RSH01`, inspect the returned package, and explicitly approve installation. The helper verifies a SHA-256 digest and writes only `skill.json` and `SKILL.md` into `NIPLEX-OBSIDIAN/Skills/`. After relaunch, the main plugin loads the package as untrusted additive guidance and applies only allowlisted numeric settings patches.
-
-The public catalogue includes nine reviewed research packages (`RSH01`–`RSH09`). The upstream Hermes research directory is vendored under the catalogue repository for inspection with its MIT notice preserved, but it is not a live runtime dependency. Bundled upstream scripts are not executed by Niplex.
+Enter a five-character code such as `RSH01`, inspect the returned package, and explicitly approve installation. The helper verifies a SHA-256 digest and writes only `skill.json` and `SKILL.md` into `NIPLEX-OBSIDIAN/Skills/`. After installation, reopen `/skill` in Research AI to refresh the list immediately; a full restart is still safe but is not required for discovery. The main plugin loads the package as untrusted additive guidance and applies only allowlisted numeric settings patches. The public catalogue includes nine reviewed research packages (`RSH01`–`RSH09`). The upstream Hermes research directory is vendored under the catalogue repository for inspection with its MIT notice preserved, but it is not a live runtime dependency. Bundled upstream scripts are not executed by Niplex.
 
 ## Privacy and security
 

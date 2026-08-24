@@ -399,6 +399,24 @@
 	line-height: 1.35;
 }
 
+.oar-skill-selection {
+	margin: 0 0 var(--size-4-2);
+}
+
+.oar-skill-selection-button {
+	max-width: 100%;
+	min-height: 2.35rem;
+	padding: 0 var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s, 0.35rem);
+	background: var(--background-primary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .oar-composer-entry {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
@@ -445,6 +463,17 @@
 
 .oar-attach-button {
 	border-radius: 50%;
+}
+
+.oar-stop-button {
+	border-radius: 50%;
+	background: var(--background-modifier-error);
+	color: var(--text-error);
+}
+
+.oar-stop-button svg {
+	width: 1rem;
+	height: 1rem;
 }
 
 .oar-query-counter {
@@ -513,6 +542,55 @@
 .oar-chat-moc-button svg {
 	width: 1.1rem;
 	height: 1.1rem;
+}
+
+.oar-skill-output-control {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin: var(--size-4-3) 0;
+}
+
+.oar-skill-output-control label {
+	font-weight: 600;
+}
+
+.oar-skill-output-control select {
+	flex: 1;
+	min-height: 2.75rem;
+}
+
+.oar-skill-selector-list {
+	display: grid;
+	gap: var(--size-4-2);
+	max-height: 50vh;
+	overflow-y: auto;
+}
+
+.oar-skill-option {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: start;
+	gap: var(--size-4-2);
+	padding: var(--size-4-2);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s, 0.35rem);
+	background: var(--background-secondary);
+}
+
+.oar-skill-option input {
+	margin-top: var(--size-4-1);
+}
+
+.oar-skill-option-copy {
+	display: grid;
+	gap: var(--size-4-1);
+	min-width: 0;
+}
+
+.oar-skill-option-copy small {
+	color: var(--text-muted);
+	line-height: 1.35;
 }
 
 .oar-continue-button {

@@ -1,6 +1,6 @@
 import { App, TFile } from "obsidian";
 import { sanitizeVaultPath } from "./path-utils";
-import type { ChatMessage, SavedChat } from "./types";
+import type { ChatMessage, InstalledSkill, SavedChat } from "./types";
 import { compactChatMessages } from "./chat-history";
 import { CONTEXT_BUDGETS } from "./context-budget";
 import { parseReadableChat } from "./readable-chat";
@@ -15,12 +15,6 @@ export const NIPLEX_RUNTIME = `${NIPLEX_ROOT}/Runtime`;
 export const NIPLEX_RUNTIME_CHATS = `${NIPLEX_RUNTIME}/Chats`;
 export const NIPLEX_MOCS = `${NIPLEX_ROOT}/MOCs`;
 export const NIPLEX_AGENT_PROTECTED_FOLDERS = [NIPLEX_CHATS, NIPLEX_PROMPTS, NIPLEX_MEMORY, NIPLEX_SKILLS, NIPLEX_RUNTIME] as const;
-
-export interface InstalledSkill {
-	code: string;
-	prompt: string;
-	settingsPatch: Partial<Pick<import("./types").AgentSettings, "maxIterations" | "maxReadLines" | "maxToolResultChars">>;
-}
 
 const START_MARKER = "<!-- niplex-chat-data-start -->";
 const END_MARKER = "<!-- niplex-chat-data-end -->";
@@ -174,16 +168,19 @@ export class LocalVaultStore {
 			try {
 				const raw: unknown = JSON.parse(await this.app.vault.read(manifestFile));
 				if (!raw || typeof raw !== "object") continue;
-				const source = raw as Record<string, unknown>;
-				if (source.code !== code || typeof source.prompt !== "string" || !source.prompt.trim()) continue;
-				const patch: InstalledSkill["settingsPatch"] = {};
+					const source = raw as Record<string, unknown>;
+					if (source.code !== code || typeof source.prompt !== "string" || !source.prompt.trim()) continue;
+					const patch: InstalledSkill["settingsPatch"] = {};
 				if (source.settingsPatch && typeof source.settingsPatch === "object") {
 					for (const key of ["maxIterations", "maxReadLines", "maxToolResultChars"] as const) {
 						const value = (source.settingsPatch as Record<string, unknown>)[key];
 						if (typeof value === "number" && Number.isFinite(value)) patch[key] = Math.floor(value);
 					}
 				}
-				skills.push({ code, prompt: source.prompt.trim().slice(0, CONTEXT_BUDGETS.maxSkillGuidanceChars), settingsPatch: patch });
+					const name = typeof source.name === "string" && source.name.trim() ? source.name.trim().slice(0, 80) : code;
+					const version = typeof source.version === "string" && source.version.trim() ? source.version.trim().slice(0, 40) : "installed";
+					const description = typeof source.description === "string" ? source.description.trim().slice(0, 360) : "Installed instruction skill.";
+					skills.push({ code, name, version, description, prompt: source.prompt.trim().slice(0, CONTEXT_BUDGETS.maxSkillGuidanceChars), settingsPatch: patch });
 			} catch {
 				// Ignore malformed local packages; the helper validates packages before installation.
 			}
@@ -202,7 +199,7 @@ export class LocalVaultStore {
 	async saveChat(chat: SavedChat): Promise<void> {
 		await this.ensureStructure();
 		const subject = (chat.subject ?? chat.title).replace(/[\r\n]/g, " ").trim() || "Research chat";
-		const safeChat: SavedChat = { ...chat, title: subject, subject, messages: compactChatMessages(chat.messages), activity: boundedActivity(chat.activity) };
+		const safeChat: SavedChat = { ...chat, title: subject, subject, messages: compactChatMessages(chat.messages), activity: boundedActivity(chat.activity), skillCodes: [...new Set((chat.skillCodes ?? []).filter((code) => /^[A-Z0-9]{5}$/.test(code)))].slice(0, 8) };
 		const path = sanitizeVaultPath(chatFilePath(safeChat.id));
 		const runtimePath = sanitizeVaultPath(runtimeChatFilePath(safeChat.id));
 		if (!path || !runtimePath) throw new Error("Invalid local chat path.");
