@@ -176,7 +176,43 @@
 	padding: var(--size-4-2) 0;
 	overflow-x: hidden;
 	overflow-y: auto;
+	overflow-anchor: none;
+	scroll-behavior: smooth;
 	overscroll-behavior: contain;
+}
+
+/* User-controlled conversation density. The Obsidian pane remains resizable by the host; these profiles control how much of it the chat uses. */
+.oar-window-compact .oar-transcript {
+	padding-block: var(--size-4-1);
+}
+
+.oar-window-compact .oar-message {
+	max-width: min(82%, 42rem);
+	margin-block: var(--size-4-1);
+	padding: var(--size-4-1) var(--size-4-2);
+}
+
+.oar-window-comfortable .oar-message {
+	max-width: min(90%, 56rem);
+}
+
+.oar-window-spacious .oar-message {
+	max-width: min(98%, 72rem);
+	margin-block: var(--size-4-3);
+	padding: var(--size-4-3);
+}
+
+.oar-window-compact .oar-composer-entry textarea {
+	min-height: 4.5rem;
+}
+
+.oar-window-comfortable .oar-composer-entry textarea {
+	min-height: 6.5rem;
+}
+
+.oar-window-spacious .oar-composer-entry textarea {
+	min-height: 8rem;
+	max-height: 18rem;
 }
 
 .oar-message {

@@ -54,6 +54,13 @@ test("normalizes the output-size preference", () => {
 	assert.equal(normalizeAgentSettings({ outputSize: "unsupported" }).outputSize, "standard");
 });
 
+test("normalizes the chat-window size preference", () => {
+	assert.equal(normalizeAgentSettings({ windowSize: "spacious" }).windowSize, "spacious");
+	assert.equal(normalizeAgentSettings({ windowSize: "compact" }).windowSize, "compact");
+	assert.equal(normalizeAgentSettings({ windowSize: "unsupported" }).windowSize, "comfortable");
+	assert.equal(normalizeAgentSettings({}).windowSize, "comfortable");
+});
+
 test("keeps the quick-action bar to three valid icons and defaults legacy mode to chat", () => {
 	const settings = normalizeAgentSettings({
 		quickActions: ["moc", "history", "logs", "attach", "moc", "unknown"],

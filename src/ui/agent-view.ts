@@ -90,6 +90,7 @@ export class AgentView extends ItemView {
 		const root = this.containerEl;
 		root.empty();
 		root.addClass("oar-view");
+		this.applyWindowSize(root);
 
 		const header = root.createDiv({ cls: "oar-header" });
 		const headerRow = header.createDiv({ cls: "oar-header-row" });
@@ -188,7 +189,13 @@ export class AgentView extends ItemView {
 		});
 	}
 
-	private renderQuickBar(): void {
+			private applyWindowSize(root: HTMLElement = this.containerEl): void {
+			root.removeClass("oar-window-compact", "oar-window-comfortable", "oar-window-spacious");
+			root.addClass(`oar-window-${this.host.settings.windowSize}`);
+		}
+
+		private renderQuickBar(): void {
+
 		if (!this.quickBarEl) return;
 		this.quickBarEl.empty();
 		const quickButtons = this.quickBarEl.createDiv({ cls: "oar-quick-buttons" });
@@ -434,7 +441,13 @@ export class AgentView extends ItemView {
 			},
 			onOpenLogs: () => this.host.openDiagnostics(),
 			onOpenPrompts: () => this.host.openPrompts(),
-			onOpenMemory: () => this.host.openMemoryFile(),
+							onOpenMemory: () => this.host.openMemoryFile(),
+				onWindowSizeChange: async (size) => {
+					this.host.settings.windowSize = size;
+					await this.host.saveSettings();
+					this.applyWindowSize();
+				},
+
 		};
 		new ActionSheetModal(this.app, sheetHost).open();
 	}

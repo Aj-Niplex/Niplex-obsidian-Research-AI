@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import type { AgentSettings, ProviderId, ProviderModel, QuickActionId, SavedChat } from "../core/types";
+import type { AgentSettings, ProviderId, ProviderModel, QuickActionId, SavedChat, WindowSize } from "../core/types";
 import { searchableChatText } from "../core/chat-history";
 
 export interface ActionSheetHost {
@@ -23,6 +23,7 @@ export interface ActionSheetHost {
 	onOpenLogs(): void;
 	onOpenPrompts(): void;
 	onOpenMemory(): Promise<void>;
+	onWindowSizeChange(size: WindowSize): Promise<void>;
 }
 
 const QUICK_ACTIONS: Array<{ id: QuickActionId; label: string; icon: string }> = [
@@ -90,10 +91,21 @@ export class ActionSheetModal extends Modal {
 		providerSelect.value = this.host.settings.provider;
 		providerSelect.addEventListener("change", () => void this.changeProvider(providerSelect.value as ProviderId));
 		this.modelSelectEl = provider.createEl("select", { cls: "oar-action-select", attr: { "aria-label": "Model" } });
-		this.modelSelectEl.addEventListener("change", () => void this.host.onModelChange(this.modelSelectEl.value));
-		void this.refreshModels();
+			this.modelSelectEl.addEventListener("change", () => void this.host.onModelChange(this.modelSelectEl.value));
+			void this.refreshModels();
 
-		const more = this.addDisclosure(contentEl, "More tools", "View transparent prompts or open redacted diagnostics.");
+			const layout = this.addDisclosure(contentEl, "Chat window size", "Choose how much space the conversation gets on screen.");
+			const layoutSelect = layout.createEl("select", { cls: "oar-action-select", attr: { "aria-label": "Chat window size" } });
+			layoutSelect.add(new Option("Compact · more room for other Obsidian panes", "compact"));
+			layoutSelect.add(new Option("Comfortable · balanced reading space", "comfortable"));
+			layoutSelect.add(new Option("Spacious · largest conversation area", "spacious"));
+			layoutSelect.value = this.host.settings.windowSize;
+			layoutSelect.addEventListener("change", () => {
+				const size = layoutSelect.value as WindowSize;
+				if (size === "compact" || size === "comfortable" || size === "spacious") void this.host.onWindowSizeChange(size);
+			});
+
+			const more = this.addDisclosure(contentEl, "More tools", "View transparent prompts or open redacted diagnostics.");
 		this.addActionCard(more, "View prompts", "Read the protected policy and edit only the additive prompt.", () => this.host.onOpenPrompts());
 		this.addActionCard(more, "Open user memory", "Review the bounded personalization note before or after an approved update.", () => void this.host.onOpenMemory());
 		this.addActionCard(more, "Open logs", "Review local redacted diagnostics.", () => this.host.onOpenLogs());

@@ -1,9 +1,9 @@
 {
 	"id": "niplex-agentic-research",
 	"name": "Niplex Research AI",
-	"version": "0.1.16",
+	"version": "0.1.17",
 	"minAppVersion": "1.11.4",
-	"description": "Autonomous mobile-first Obsidian research AI with a stoppable runtime timeline, bounded vault context, inline @ mentions, /skill controls, and approval-safe edits.",
+	"description": "Autonomous mobile-first Obsidian research AI with a stoppable runtime timeline, user-controlled chat-window sizing, bounded vault context, inline @ mentions, /skill controls, and approval-safe edits.",
 	"author": "Aj-Niplex",
 	"authorUrl": "https://github.com/Aj-Niplex",
 	"isDesktopOnly": false

@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type AgentSettings, type ModelCooldown, type MocCheckpoint, type MocCheckpointCategory, type OutputSize, type QuickActionId, type ResearchMode } from "./types";
+import { DEFAULT_SETTINGS, type AgentSettings, type ModelCooldown, type MocCheckpoint, type MocCheckpointCategory, type OutputSize, type QuickActionId, type ResearchMode, type WindowSize } from "./types";
 import { normalizeUserSystemPrompt } from "./system-prompt";
 import { normalizeApprovalPolicy } from "./approval-policy";
 
@@ -18,6 +18,10 @@ function normalizeResearchMode(value: unknown): ResearchMode {
 
 function normalizeOutputSize(value: unknown): OutputSize {
 	return value === "lowest" || value === "low" || value === "high" || value === "maximum" ? value : "standard";
+}
+
+function normalizeWindowSize(value: unknown): WindowSize {
+	return value === "compact" || value === "spacious" ? value : "comfortable";
 }
 
 function normalizeModelList(value: unknown): string[] {
@@ -83,6 +87,7 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
 		quickActions: normalizeQuickActions(source.quickActions),
 		researchMode: normalizeResearchMode(source.researchMode),
 		outputSize: normalizeOutputSize(source.outputSize),
+		windowSize: normalizeWindowSize(source.windowSize),
 		onboardingVersion: numberValue("onboardingVersion", DEFAULT_SETTINGS.onboardingVersion, 0, 100),
 		onboardingCompleted: source.onboardingCompleted === true || (typeof source.onboardingVersion === "number" && source.onboardingVersion > 0),
 	};

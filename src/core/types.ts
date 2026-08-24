@@ -2,6 +2,7 @@ export type ProviderId = "gemini" | "agnes";
 export type ResearchMode = "plan" | "chat" | "edit";
 export type QuickActionId = "history" | "attach" | "moc" | "continue" | "prompts" | "logs";
 export type OutputSize = "lowest" | "low" | "standard" | "high" | "maximum";
+export type WindowSize = "compact" | "comfortable" | "spacious";
 
 export type Role = "system" | "user" | "assistant" | "tool";
 
@@ -160,6 +161,7 @@ export interface AgentSettings {
 	quickActions: QuickActionId[];
 	researchMode: ResearchMode;
 	outputSize: OutputSize;
+	windowSize: WindowSize;
 	onboardingVersion: number;
 	onboardingCompleted: boolean;
 }
@@ -185,6 +187,7 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	quickActions: ["history", "moc", "prompts"],
 	researchMode: "chat",
 	outputSize: "standard",
+	windowSize: "comfortable",
 	onboardingVersion: 0,
 	onboardingCompleted: false,
 };

@@ -50,9 +50,9 @@ The following captures show the mobile interaction model, helper marketplace, in
 
 ## Latest release notes
 
-### 0.1.16 — focused mobile workspace and model recovery
+### 0.1.17 — user-controlled chat window size
 
-This release replaces the separate Send and Stop controls with one stateful composer button, collapses optional quick-action icons on mobile, adds the requested Gemini/Gemma fallback priority, rewrites skill descriptions in plain language, and keeps the full `/skill`, `@path`, Helper refresh, and safe runtime timeline workflow. No private prompts, API keys, raw tool payloads, or hidden chain-of-thought are persisted.
+This release adds Compact, Comfortable, and Spacious chat-window profiles under **Actions → Chat window size**. The choice is saved locally and updates the current view immediately. Compact reduces card and composer height, Comfortable keeps a balanced reading layout, and Spacious gives answers and the composer more room. The runtime timeline remains scrollable and the mobile workspace keeps secondary tools behind **Actions**.
 
 ## Architecture
 
