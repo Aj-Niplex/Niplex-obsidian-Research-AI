@@ -1,12 +1,12 @@
 # Niplex Research AI
 
-**Niplex Research AI** is an autonomous, mobile-first Obsidian plugin for focused research over a user’s own vault. It combines bounded vault discovery, Gemini and Agnes provider adapters, incremental AI-discovered MOCs, explicit context selection, transparent prompts, local chat history, and approval-safe edits.
+Niplex Research AI is a mobile-first research assistant for Obsidian. Ask a question about your vault, let the agent search for relevant notes, and follow the evidence without pasting an entire folder into a model request.
 
-The plugin is designed for a simple rule:
+I built it around a practical boundary:
 
-> The agent should be useful without treating the whole vault as an upload.
+> The agent should read what it needs, not receive the whole vault by default.
 
-It reads metadata, searches narrowly, opens line windows, and follows relevant links step by step. A super-MOC can provide a navigation index, but it is not a license to read every note. Durable edits remain under the user’s control.
+The plugin searches note names and metadata first, opens bounded line windows when necessary, and keeps durable edits behind an explicit approval step. A super-MOC is a navigation index, not permission to read every note.
 
 ## What it does
 
@@ -15,22 +15,22 @@ It reads metadata, searches narrowly, opens line windows, and follows relevant l
 | Autonomous research loop | Plans bounded steps, searches the vault, reads relevant line windows, and returns an evidence-grounded answer. |
 | Mobile-first workspace | Keeps the conversation and composer visible while secondary controls live behind **Actions** and compact icon controls. |
 | Provider choice | Supports user-entered Gemini and Agnes API keys stored in Obsidian SecretStorage. |
-| Recovery from busy models | Rate limits, timeouts, temporary high-demand responses, and model-unavailable responses trigger visible cooldown and same-provider fallback when enabled. |
+| Recovery from busy models | Rate limits, timeouts, temporary high-demand responses, and unavailable models trigger a visible cooldown and optional same-provider fallback. |
 | Transparent prompt | Shows the protected Aj-Niplex/Niplex policy in a large read-only panel. The additive custom prompt is capped at 6,000 characters and cannot replace the protected policy. |
 | Bounded input | Caps the research question at 6,000 characters, installed skill guidance at 6,000 characters, injected context at 20,000 characters, and provider message history at 32,000 characters. |
 | Explicit context | The `+` control offers **Files** or **Folder**. A folder adds at most eight Markdown descendants; it does not upload the folder wholesale. |
 | Local chat history | Every user turn is saved as readable Markdown under `NIPLEX-OBSIDIAN/Chats/`. The reverse-clock history control opens local search, reopen, and delete actions. |
 | Research modes | **Plan** and **Chat** are read-only. **Create & edit** is required before a write tool can be considered, and writes still require approval unless a narrow timed policy is explicitly configured. |
 | Quick actions | Users choose up to three icon actions for the left side of the quick bar. The model selector and research-mode selector remain directly beside them. |
-| AI-discovered MOCs | Creates category notes with short summaries, supports multi-category membership, and writes a super-MOC under `NIPLEX-OBSIDIAN/MOCs/`. Runs checkpoint and resume instead of looking frozen during long mobile work. |
+| AI-discovered MOCs | Finds categories from bounded note context, allows multi-category membership, and checkpoints long runs so they can resume safely. |
 | Skills | The optional helper installs only reviewed, instruction-only packages after code lookup, digest verification, preview, and explicit approval. |
 | Public video input | Detects one public YouTube URL in a focused question and sends it to Gemini as a bounded `fileData.fileUri` video part. Agnes receives the URL as text because its current adapter does not claim native video input. |
 
 ## Mobile interaction model
 
-The main view intentionally avoids a dashboard full of open controls. The top row contains the title and **Actions**. Under it, the quick-action bar contains up to three user-selected icons, followed by the model selector and the **Plan / Chat / Create & edit** mode selector. The middle of the screen is a large scrollable transcript. The composer is kept low and calm: the chat field sits on the left, while the right-side icon stack contains `+` for context and an arrow for sending.
+The main view keeps the conversation visible and moves less frequent controls behind **Actions**. The quick-action bar holds up to three icons, followed by the model and mode selectors. The composer stays at the bottom: the text field is on the left, with context and send controls on the right.
 
-The `+` control first asks whether the user wants **Files** or **Folder**. Selecting a folder adds only a capped set of Markdown paths as explicit attachments; note bodies remain unread until the run and are still read in bounded windows. The **Actions** sheet contains less-frequent tools such as MOC building, saved-chat management, prompt inspection, logs, and quick-action configuration.
+Tap `+` to choose **Files** or **Folder**. A folder contributes at most eight Markdown paths; it is not uploaded wholesale. The **Actions** sheet contains MOC building, saved-chat management, prompt inspection, logs, and quick-action configuration.
 
 ## Architecture
 
@@ -71,23 +71,34 @@ sequenceDiagram
     O->>V: Save chat locally as Markdown
 ```
 
-## Installation from GitHub source
+## Installation
 
-The product repository is public and provides a matching GitHub release with `main.js`, `manifest.json`, and `styles.css`. After the Community Plugins listing is published, users can install it from inside Obsidian; source installation remains available for testing. The development repository is private.
+The easiest route is **Settings → Community plugins → Browse**. Search for **Niplex Research AI**, install it, enable it, and open the plugin.
 
-1. For source testing, clone the https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI, install dependencies, and build locally. For normal installation, use the Community Plugins listing after publication or download the https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI/releases.
-2. If installing from source or a release asset, create a folder named `niplex-agentic-research` inside the target vault’s `.obsidian/plugins/` directory.
-3. Copy `main.js` together with `manifest.json` and `styles.css` into that folder.
-4. Reload Obsidian, enable **Niplex Research AI**, and complete the walkthrough.
-5. Enter a Gemini or Agnes API key in plugin settings. Keys remain in Obsidian SecretStorage and are never written into `NIPLEX-OBSIDIAN`.
+For manual testing, download `main.js`, `manifest.json`, and `styles.css` from the [GitHub releases page](https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI/releases). Put them in:
+
+```text
+<Vault>/.obsidian/plugins/niplex-agentic-research/
+```
+
+Reload Obsidian, enable **Niplex Research AI**, and complete the walkthrough. The [development repository](https://github.com/Aj-Niplex/Dev-obsidian-agentic-research) is private; the product repository is public.
 
 ```bash
 git clone https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI.git
 cd Niplex-obsidian-Research-AI
 npm install
 npm run build
-Copy the three release files into your vault’s `.obsidian/plugins/niplex-agentic-research/` folder.
 ```
+
+The build creates `main.js`. Copy it with `manifest.json` and `styles.css` into the plugin folder shown above.
+
+## First-run setup
+
+The walkthrough checks for **Niplex Skills Helper** and **Iconize**. Both are optional to the main research view. If one is missing or outdated, the walkthrough provides an install or update link; it does not silently download or enable another plugin.
+
+The walkthrough also asks where MOCs should live. Choose either `MOCs/` at the vault root or `NIPLEX-OBSIDIAN/MOCs/`. That choice becomes the default for later MOC creation and adjustment. After the choice is saved, the MOC builder opens and starts automatically. You can minimize its window, but keep it open until the run finishes.
+
+For a cleaner Graph View, you may exclude `NIPLEX-OBSIDIAN/` manually in **Graph View → Filters → Excluded folders**. The plugin does not change that global setting.
 
 For development, clone the repository, install dependencies, and run the local checks:
 
@@ -114,13 +125,13 @@ Agnes remains available for text and vault research, but its current adapter doe
 
 ## User-owned workspace
 
-The plugin stores user-facing AI data in the visible vault folder below:
+The plugin keeps its user-facing files in one visible vault folder:
 
 ```text
 NIPLEX-OBSIDIAN/
 ├── Chats/       # Readable saved conversations
-├── Memory/      # Reserved for user-controlled memory
-├── MOCs/        # Generated category maps and super-MOCs
+├── Memory/      # User-visible personalization memory
+├── MOCs/        # Generated maps when this location is selected
 ├── Prompts/     # Additive custom prompt mirror
 ├── Runtime/     # Protected checkpoints and diagnostics
 └── Skills/      # Validated helper-installed skill packages
@@ -156,13 +167,13 @@ The public catalogue includes nine reviewed research packages (`RSH01`–`RSH09`
 
 ## Privacy and security
 
-The plugin sends the focused user question, the protected policy, the capped additive prompt, bounded super-MOC context when available, explicitly selected bounded attachment windows, bounded tool results, and selected conversation messages to the configured provider. It does not index or upload the whole vault. Write tools are separated from read-only tools and are blocked outside **Create & edit** mode.
+For a run, the plugin sends the focused question, the protected policy, the capped custom prompt, bounded context selected for that request, bounded tool results, and compact conversation history to the configured provider. It does not upload the whole vault. Write tools are separated from read-only tools and are blocked outside **Create & edit** mode.
 
 Diagnostics are intentionally redacted. They may include provider/model events, cooldowns, timeouts, and short error summaries, but not API keys, prompts, model responses, or vault excerpts. Users should still review a diagnostics export before sharing it.
 
 ## Current limitations
 
-The plugin still needs physical Android and iOS testing inside a real Obsidian vault. In particular, verify SecretStorage behavior, modal sizing, Graph View instructions, folder attachment ordering, local chat persistence, provider fallback with the user’s keys, public YouTube handling with Gemini, and helper authentication against a private fork. The product does not currently run background schedules or automatic vault hooks.
+This is still an active project, so real Android and iOS testing matters. The areas most worth checking are SecretStorage, modal sizing, long MOC runs, local chat migration, provider fallback, public YouTube handling with Gemini, and helper updates. The plugin does not run background jobs or automatic vault hooks.
 
 ## Repository layout
 
@@ -187,10 +198,6 @@ src/
 └── main.ts                    # Obsidian lifecycle and host boundary
 ```
 
-## Design references
-
-The README structure follows conventions common in maintained Obsidian plugins: a short product statement, feature table, installation and development instructions, privacy notes, troubleshooting, architecture, and licensing. The project specifically reviewed Claudian (https://github.com/YishenTu/claudian), Gemini Scribe (https://github.com/allenhutchison/obsidian-gemini), Smart Connections (https://github.com/brianpetro/obsidian-smart-connections), and Dataview (https://github.com/blacksmithgu/obsidian-dataview) while keeping this implementation independent of their runtime code.
-
 ## License
 
-This project is released under the MIT License. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).
