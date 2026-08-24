@@ -13,6 +13,7 @@ test("migrates legacy settings without losing safe defaults", () => {
 	assert.equal(settings.activeMocPath, "MOCs/MOCs super.md");
 	assert.equal(settings.onboardingVersion, 0);
 	assert.equal(settings.mocLocationConfigured, false);
+	assert.equal(settings.onboardingCompleted, false);
 });
 
 test("normalizes MOC time budget and checkpoint state", () => {
@@ -38,7 +39,14 @@ test("normalizes fallback order and clamps onboarding state", () => {
 	const settings = normalizeAgentSettings({ geminiFallbackModels: [" gemini-a ", "gemini-a", 5, ""], onboardingVersion: 99, maxReadLines: 1 });
 	assert.deepEqual(settings.geminiFallbackModels, ["gemini-a"]);
 	assert.equal(settings.onboardingVersion, 99);
+	assert.equal(settings.onboardingCompleted, true);
 	assert.equal(settings.maxReadLines, 20);
+});
+
+test("keeps a fresh install incomplete until walkthrough completion is saved", () => {
+	assert.equal(normalizeAgentSettings({}).onboardingCompleted, false);
+	assert.equal(normalizeAgentSettings({ onboardingVersion: 4 }).onboardingCompleted, true);
+	assert.equal(normalizeAgentSettings({ onboardingCompleted: true }).onboardingCompleted, true);
 });
 
 test("keeps the quick-action bar to three valid icons and defaults legacy mode to chat", () => {

@@ -147,6 +147,7 @@ export interface AgentSettings {
 	quickActions: QuickActionId[];
 	researchMode: ResearchMode;
 	onboardingVersion: number;
+	onboardingCompleted: boolean;
 }
 
 export const DEFAULT_SETTINGS: AgentSettings = {
@@ -170,4 +171,5 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	quickActions: ["history", "moc", "prompts"],
 	researchMode: "chat",
 	onboardingVersion: 0,
+	onboardingCompleted: false,
 };

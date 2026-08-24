@@ -79,5 +79,6 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
 		quickActions: normalizeQuickActions(source.quickActions),
 		researchMode: normalizeResearchMode(source.researchMode),
 		onboardingVersion: numberValue("onboardingVersion", DEFAULT_SETTINGS.onboardingVersion, 0, 100),
+		onboardingCompleted: source.onboardingCompleted === true || (typeof source.onboardingVersion === "number" && source.onboardingVersion > 0),
 	};
 }

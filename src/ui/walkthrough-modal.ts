@@ -201,6 +201,7 @@ export class WalkthroughModal extends Modal {
 
 	private async finish(message: string): Promise<void> {
 		this.host.settings.onboardingVersion = WALKTHROUGH_VERSION;
+		this.host.settings.onboardingCompleted = true;
 		await this.host.saveSettings();
 		new Notice(message, 7000);
 		this.close();

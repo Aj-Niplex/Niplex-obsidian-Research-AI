@@ -11,7 +11,7 @@ import { AgenticResearchSettingTab, type SettingsHost } from "./settings";
 import { ApprovalModal } from "./ui/approval-modal";
 import { AGENT_VIEW_TYPE, LEGACY_AGENT_VIEW_TYPE, AgentView, type AgentViewHost } from "./ui/agent-view";
 import { MocModal } from "./ui/moc-modal";
-import { WALKTHROUGH_VERSION, WalkthroughModal } from "./ui/walkthrough-modal";
+import { WalkthroughModal } from "./ui/walkthrough-modal";
 import { DiagnosticsModal } from "./ui/diagnostics-modal";
 import { PromptModal } from "./ui/prompt-modal";
 import { canAutoApproveWrite } from "./core/approval-policy";
@@ -62,18 +62,25 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		this.settings = normalizeAgentSettings(savedSettings);
 		const legacyChats = raw && Array.isArray(raw.chats) ? raw.chats.map(normalizeChat).filter((chat): chat is SavedChat => chat !== null) : [];
 		this.localVaultStore = new LocalVaultStore(this.app);
-		await this.localVaultStore.ensureStructure();
-		const localPrompt = await this.localVaultStore.loadUserPrompt();
-		if (localPrompt !== null) this.settings.userSystemPrompt = normalizeUserSystemPrompt(localPrompt);
-		else if (this.settings.userSystemPrompt) await this.localVaultStore.saveUserPrompt(this.settings.userSystemPrompt);
-		const localChats = await this.localVaultStore.loadChats(normalizeChat);
-		this.chats = localChats.length ? localChats : legacyChats;
-		if (!localChats.length && legacyChats.length) for (const chat of legacyChats) await this.localVaultStore.saveChat(chat);
-		this.installedSkills = await this.localVaultStore.loadInstalledSkills();
-		const skillPatch: Partial<AgentSettings> = {};
-		for (const skill of this.installedSkills) Object.assign(skillPatch, skill.settingsPatch);
-		this.settings = normalizeAgentSettings({ ...this.settings, ...skillPatch });
 		this.diagnostics = new DiagnosticsStore(raw && Array.isArray(raw.diagnostics) ? raw.diagnostics : []);
+		try {
+			await this.localVaultStore.ensureStructure();
+			const localPrompt = await this.localVaultStore.loadUserPrompt();
+			if (localPrompt !== null) this.settings.userSystemPrompt = normalizeUserSystemPrompt(localPrompt);
+			else if (this.settings.userSystemPrompt) await this.localVaultStore.saveUserPrompt(this.settings.userSystemPrompt);
+			const localChats = await this.localVaultStore.loadChats(normalizeChat);
+			this.chats = localChats.length ? localChats : legacyChats;
+			if (!localChats.length && legacyChats.length) for (const chat of legacyChats) await this.localVaultStore.saveChat(chat);
+			this.installedSkills = await this.localVaultStore.loadInstalledSkills();
+			const skillPatch: Partial<AgentSettings> = {};
+			for (const skill of this.installedSkills) Object.assign(skillPatch, skill.settingsPatch);
+			this.settings = normalizeAgentSettings({ ...this.settings, ...skillPatch });
+		} catch (error) {
+			this.chats = legacyChats;
+			this.installedSkills = [];
+			console.error("Niplex Research AI local workspace startup failed; continuing with plugin defaults.", error);
+			new Notice("Niplex research AI opened, but its local workspace could not be prepared. Check vault permissions and reload later.", 7000);
+		}
 
 		this.registerView(AGENT_VIEW_TYPE, (leaf) => new AgentView(leaf, this));
 		this.addRibbonIcon("search", "Open agentic research", () => void this.activateView());
@@ -111,7 +118,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		this.app.workspace.onLayoutReady(() => {
 			// Obsidian can restore the old persisted leaf before the new view registration is ready; remove only that obsolete placeholder.
 			this.app.workspace.detachLeavesOfType(LEGACY_AGENT_VIEW_TYPE);
-			if (this.settings.onboardingVersion < WALKTHROUGH_VERSION) window.setTimeout(() => this.openWalkthrough(), 250);
+			if (!this.settings.onboardingCompleted) window.setTimeout(() => this.openWalkthrough(), 250);
 		});
 	}
 
