@@ -858,8 +858,7 @@
 .oar-moc-location-option {
 	display: grid;
 	grid-template-columns: auto 1fr;
-	column-gap: var(--size-4-2);
-	row-gap: var(--size-4-1);
+	gap: var(--size-4-1) var(--size-4-2);
 	align-items: center;
 	padding: var(--size-4-2);
 	border: 1px solid var(--background-modifier-border);

@@ -50,9 +50,9 @@ The following captures show the mobile interaction model, helper marketplace, in
 
 ## Latest release notes
 
-### 0.1.18 — Community manifest validation repair
+### 0.1.19 — Community review warning cleanup
 
-This patch removes the redundant product-name word from the Community manifest description after the automated validator flagged it. The user-facing README and plugin functionality are unchanged: the release retains the Compact, Comfortable, and Spacious chat-window profiles, stoppable runtime, bounded note context, inline commands, and skill controls.
+This patch removes three non-blocking automated-review warnings: it avoids an unsafe-looking activity lookup, uses a standard grid gap declaration for older host compatibility, and replaces placeholder-style installation wording in the README. The release retains the corrected manifest description, Compact/Comfortable/Spacious chat-window profiles, stoppable runtime, bounded note context, inline commands, and skill controls.
 
 ## Architecture
 
@@ -100,7 +100,7 @@ The easiest route is **Settings → Community plugins → Browse**. Search for *
 For manual testing, download `main.js`, `manifest.json`, and `styles.css` from the [GitHub releases page](https://github.com/Aj-Niplex/Niplex-obsidian-Research-AI/releases). Put them in:
 
 ```text
-<Vault>/.obsidian/plugins/niplex-agentic-research/
+MyVault/.obsidian/plugins/niplex-agentic-research/
 ```
 
 Reload Obsidian, enable **Niplex Research AI**, and complete the walkthrough. The [development repository](https://github.com/Aj-Niplex/Dev-obsidian-agentic-research) is private; the product repository is public.
@@ -165,7 +165,7 @@ For a cleaner visual graph, manually add `NIPLEX-OBSIDIAN/` to **Graph View → 
 
 ## Prompt transparency and limits
 
-The **System prompts** view presents the built-in Aj-Niplex/Niplex policy in a large read-only showcase. It explains bounded context, untrusted vault text, privacy boundaries, and approval behavior. The UI cannot edit or replace this protected policy, and the runtime removes historical system messages before injecting exactly one protected policy message at the start of every run.
+The **System prompts** view presents the built-in Aj-Niplex/Niplex policy in a large read-only showcase. It explains bounded context, untrusted vault text, privacy boundaries, and approval behavior. The UI cannot edit or override this protected policy, and the runtime removes historical system messages before injecting exactly one protected policy message at the start of every run.
 
 The user prompt is additive preference text only. It is capped at 6,000 characters, displays a live counter, and is mirrored locally under `NIPLEX-OBSIDIAN/Prompts/`. Provider tokenization differs by model, so the character limits are deliberately conservative rather than pretending to be an exact token count.
 

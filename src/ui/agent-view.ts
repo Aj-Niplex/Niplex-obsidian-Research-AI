@@ -587,7 +587,7 @@ export class AgentView extends ItemView {
 	}
 
 	private trackActivity(label: string): void {
-		if (!label || this.runActivityLabels.at(-1) === label) return;
+		if (!label || this.runActivityLabels[this.runActivityLabels.length - 1] === label) return;
 		this.runActivityLabels.push(label);
 		if (this.runActivityLabels.length > 24) this.runActivityLabels.shift();
 	}
