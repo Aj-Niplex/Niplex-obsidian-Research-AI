@@ -61,11 +61,14 @@ test("normalizes the chat-window size preference", () => {
 	assert.equal(normalizeAgentSettings({}).windowSize, "comfortable");
 });
 
-test("defaults companion reminders and restart checks safely", () => {
+test("keeps companion maintenance off until setup is confirmed", () => {
 	const fresh = normalizeAgentSettings({});
-	assert.equal(fresh.companionRemindersEnabled, true);
-	assert.equal(fresh.companionUpdateChecksEnabled, true);
+	assert.equal(fresh.companionRemindersEnabled, false);
+	assert.equal(fresh.companionUpdateChecksEnabled, false);
 	assert.equal(fresh.companionSetupConfirmed, false);
+	const confirmed = normalizeAgentSettings({ companionSetupConfirmed: true });
+	assert.equal(confirmed.companionRemindersEnabled, true);
+	assert.equal(confirmed.companionUpdateChecksEnabled, true);
 	assert.equal(fresh.lastCompanionReminderAt, 0);
 	assert.equal(fresh.lastCompanionUpdateCheckAt, 0);
 	const migrated = normalizeAgentSettings({ companionRemindersEnabled: false, companionUpdateChecksEnabled: false, companionSetupConfirmed: true, lastCompanionReminderAt: -50, lastCompanionUpdateCheckAt: Number.POSITIVE_INFINITY });

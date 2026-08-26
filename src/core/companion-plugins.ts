@@ -1,5 +1,7 @@
 export type CompanionPluginId = "niplex-skills-helper" | "obsidian-icon-folder" | "niplex-research-brain" | "niplex-writing-insights";
 
+import { compareVersions } from "./version-utils";
+
 export interface CompanionPluginDefinition {
 	id: CompanionPluginId;
 	name: string;
@@ -26,7 +28,7 @@ export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
 		description: "Look up and preview five-character instruction-skill packages.",
 		communitySearchName: "Niplex Skills Helper",
 		manualInstallUrl: "https://github.com/Aj-Niplex/niplex-obsidian-helper/releases/latest",
-								expectedVersion: "0.2.0",
+								expectedVersion: "0.2.1",
 			priority: "important",
 			releaseNotesUrl: "https://github.com/Aj-Niplex/niplex-obsidian-helper/releases/latest",
 			required: true,
@@ -69,15 +71,7 @@ export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
 function versionAtLeast(actual: string | undefined, expected: string | undefined): boolean {
 	if (!expected) return true;
 	if (!actual) return false;
-	const parse = (value: string) => value.split(".").map((part) => Number.parseInt(part.replace(/[^0-9].*$/, ""), 10) || 0);
-	const actualParts = parse(actual);
-	const expectedParts = parse(expected);
-	for (let index = 0; index < Math.max(actualParts.length, expectedParts.length); index += 1) {
-		const actualPart = actualParts[index] ?? 0;
-		const expectedPart = expectedParts[index] ?? 0;
-		if (actualPart !== expectedPart) return actualPart > expectedPart;
-	}
-	return true;
+		return compareVersions(actual, expected) >= 0;
 }
 
 export function isCompanionVersionCurrent(actual: string | undefined, expected: string | undefined): boolean {

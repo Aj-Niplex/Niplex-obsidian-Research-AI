@@ -7,6 +7,9 @@ test("compares release versions numerically", () => {
 	assert.equal(compareVersions("v0.2.0", "0.2.0"), 0);
 	assert.equal(compareVersions("0.1.10", "0.1.9"), 1);
 	assert.equal(compareVersions("0.1.8", "0.1.9"), -1);
+	assert.equal(compareVersions("0.2.0", "0.2.0-beta.1"), 1);
+	assert.equal(compareVersions("0.2.0-beta.1", "0.2.0"), -1);
+	assert.equal(compareVersions("0.2.0-beta.2", "0.2.0-beta.10"), -1);
 });
 
 test("only treats a known higher release as an update", () => {
@@ -14,4 +17,5 @@ test("only treats a known higher release as an update", () => {
 	assert.equal(isReleaseNewer("0.2.0", "0.2.0"), false);
 	assert.equal(isReleaseNewer("0.1.9", "0.2.0"), false);
 	assert.equal(isReleaseNewer("0.2.1", undefined), false);
+	assert.equal(isReleaseNewer("0.2.0", "0.2.0-beta.1"), true);
 });

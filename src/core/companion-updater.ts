@@ -94,6 +94,12 @@ async function downloadText(url: string, label: string): Promise<string> {
 	return response.text;
 }
 
+export function getCompanionPluginPath(app: App, pluginId: string): string {
+	const configuredDir = typeof app.vault.configDir === "string" ? app.vault.configDir.trim().replace(/^\/+|\/+$/g, "") : "";
+	const configDir = configuredDir || ".obsidian";
+	return `${configDir}/plugins/${pluginId}`;
+}
+
 async function ensureFolder(app: App, path: string): Promise<void> {
 	const parts = path.split("/");
 	let current = "";
@@ -114,7 +120,7 @@ export async function installCompanionRelease(app: App, candidate: CompanionInst
 	for (const name of RELEASE_ASSETS) downloaded.set(name, await downloadText(release.assets[name], `${candidate.definition.name} ${name}`));
 	const manifestText = downloaded.get("manifest.json") ?? "";
 	if (!validManifest(parseJson(manifestText), candidate.definition, release)) throw new Error(`The downloaded ${candidate.definition.name} manifest did not match its allowlisted plugin identity and release version.`);
-	const pluginPath = `.obsidian/plugins/${candidate.definition.id}`;
+	const pluginPath = getCompanionPluginPath(app, candidate.definition.id);
 	await ensureFolder(app, pluginPath);
 	const previous = new Map<ReleaseAssetName, string | null>();
 	const created = new Set<ReleaseAssetName>();
