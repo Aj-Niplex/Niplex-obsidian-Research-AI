@@ -10,8 +10,9 @@ test("defines the helper as required and ecosystem extensions as optional", () =
 });
 
 test("accepts the expected helper version and newer versions", () => {
-	assert.equal(isCompanionVersionCurrent("0.2.0", "0.2.0"), true);
-	assert.equal(isCompanionVersionCurrent("0.2.1", "0.2.0"), true);
-	assert.equal(isCompanionVersionCurrent("0.1.9", "0.2.0"), false);
-	assert.equal(isCompanionVersionCurrent(undefined, "0.2.0"), false);
+	assert.equal(isCompanionVersionCurrent("0.2.1", "0.2.1"), true);
+	assert.equal(isCompanionVersionCurrent("0.2.2", "0.2.1"), true);
+	assert.equal(isCompanionVersionCurrent("0.2.0", "0.2.1"), false);
+	assert.equal(isCompanionVersionCurrent("0.2.1-beta.1", "0.2.1"), false);
+	assert.equal(isCompanionVersionCurrent(undefined, "0.2.1"), false);
 });

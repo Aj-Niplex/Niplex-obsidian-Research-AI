@@ -58,6 +58,7 @@ interface NiplexExtension {
   id: string;
   name: string;
   version: string;
+  protocol: "niplex-ecosystem";
   protocolVersion: "1.0";
   capabilities: readonly NiplexCapability[];
   dataClasses: readonly NiplexDataClass[];

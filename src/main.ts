@@ -21,7 +21,7 @@ import { boundInjectedContext, boundText, CONTEXT_BUDGETS } from "./core/context
 import { compactChatMessages } from "./core/chat-history";
 import { deriveChatSubject, normalizeGeneratedSubject } from "./core/chat-subject";
 import { COMPANION_PLUGINS, getCompanionDefinition, isCompanionVersionCurrent, type CompanionPluginId, type CompanionPluginStatus } from "./core/companion-plugins";
-import { fetchLatestCompanionRelease, installCompanionRelease, type CompanionInstallCandidate } from "./core/companion-updater";
+import { fetchLatestCompanionRelease, getCompanionPluginPath, installCompanionRelease, type CompanionInstallCandidate } from "./core/companion-updater";
 import { compareVersions, isReleaseNewer } from "./core/version-utils";
 import { NIPLEX_ECOSYSTEM_PROTOCOL, NIPLEX_ECOSYSTEM_PROTOCOL_VERSION, emptyEcosystemGrant, normalizeEcosystemContribution, permissionAllowsDataClass, type EcosystemPermissionGrant, type NiplexActionSummary, type NiplexContextContribution, type NiplexContextRequest, type NiplexExtension, type NiplexExtensionSummary, type NiplexPermissionKey, type NiplexRegistration, type NiplexResearchHostApi } from "./core/ecosystem";
 import { CompanionInstallModal, type CompanionInstallHost, type CompanionInstallMode } from "./ui/companion-install-modal";
@@ -247,8 +247,8 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 			...request,
 			requestId: request.requestId.slice(0, 100),
 			query: request.query.slice(0, 2000),
-			maxChars: Math.min(Math.max(Math.floor(request.maxChars), 200), 8000),
-			maxItems: Math.min(Math.max(Math.floor(request.maxItems), 1), 24),
+				maxChars: Math.min(Math.max(Number.isFinite(request.maxChars) ? Math.floor(request.maxChars) : 0, 0), 8000),
+				maxItems: Math.min(Math.max(Number.isFinite(request.maxItems) ? Math.floor(request.maxItems) : 0, 0), 24),
 		};
 		const contributions: NiplexContextContribution[] = [];
 		for (const extension of this.ecosystemExtensions.values()) {
@@ -297,7 +297,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 
 	isCompanionInstalled(pluginId: string): boolean {
 		const pluginManager = (this.app as unknown as { plugins?: { manifests?: Record<string, unknown> } }).plugins;
-		return Boolean(pluginManager?.manifests?.[pluginId] || this.app.vault.getAbstractFileByPath(`.obsidian/plugins/${pluginId}/manifest.json`));
+		return Boolean(pluginManager?.manifests?.[pluginId] || this.app.vault.getAbstractFileByPath(`${getCompanionPluginPath(this.app, pluginId)}/manifest.json`));
 	}
 
 	async getCompanionStatus(pluginId: CompanionPluginId): Promise<CompanionPluginStatus> {
@@ -305,7 +305,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		if (!definition) throw new Error(`Unknown companion plugin: ${pluginId}`);
 		const pluginManager = (this.app as unknown as { plugins?: { manifests?: Record<string, unknown>; enabledPlugins?: Set<string> } }).plugins;
 		const listedManifest = pluginManager?.manifests?.[pluginId];
-		const manifestFile = this.app.vault.getAbstractFileByPath(`.obsidian/plugins/${pluginId}/manifest.json`);
+			const manifestFile = this.app.vault.getAbstractFileByPath(`${getCompanionPluginPath(this.app, pluginId)}/manifest.json`);
 		let installedVersion: string | undefined;
 		const listedVersion = listedManifest && typeof listedManifest === "object" ? (listedManifest as Record<string, unknown>).version : undefined;
 		if (typeof listedVersion === "string") installedVersion = listedVersion;
@@ -337,14 +337,22 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 			let latestRelease;
 			try {
 				latestRelease = await fetchLatestCompanionRelease(definition);
-			} catch (error) {
-				this.recordDiagnostic("warn", "companion-release-check-failed", `${definition.id}: ${error instanceof Error ? error.message : "Release metadata unavailable."}`);
-				continue;
-			}
-			if (definition.expectedVersion && compareVersions(latestRelease.version, definition.expectedVersion) < 0) {
-				this.recordDiagnostic("warn", "companion-release-below-target", `${definition.id}: latest release ${latestRelease.version} is below the host target ${definition.expectedVersion}.`);
-				continue;
-			}
+				} catch (error) {
+					this.recordDiagnostic("warn", "companion-release-check-failed", `${definition.id}: ${error instanceof Error ? error.message : "Release metadata unavailable."}`);
+					candidates.push({
+						definition,
+						installed: status.installed,
+						enabled: status.enabled,
+						installedVersion: status.installedVersion,
+						reason: !status.installed ? "missing" : !status.enabled ? "disabled" : "update",
+					});
+					continue;
+				}
+				if (definition.expectedVersion && compareVersions(latestRelease.version, definition.expectedVersion) < 0) {
+					this.recordDiagnostic("warn", "companion-release-below-target", `${definition.id}: latest release ${latestRelease.version} is below the host target ${definition.expectedVersion}.`);
+					if (mode !== "updates") candidates.push({ definition, installed: status.installed, enabled: status.enabled, installedVersion: status.installedVersion, latestVersion: latestRelease.version, reason: !status.installed ? "missing" : !status.enabled ? "disabled" : "update" });
+					continue;
+				}
 			const updateAvailable = isReleaseNewer(latestRelease.version, status.installedVersion);
 			const needsAction = !status.installed || updateAvailable || !status.upToDate || !status.enabled;
 			if (mode === "updates" && !updateAvailable) continue;
@@ -370,6 +378,8 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 
 	async markCompanionSetupConfirmed(): Promise<void> {
 		this.settings.companionSetupConfirmed = true;
+		this.settings.companionRemindersEnabled = true;
+		this.settings.companionUpdateChecksEnabled = true;
 		await this.saveSettings();
 	}
 

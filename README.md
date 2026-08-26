@@ -34,7 +34,7 @@ The core is the host for a broader Niplex ecosystem. Research Brain, Writing Ins
 
 Every extension begins with no data permission. The user grants bounded context, note metadata, map provenance, coarse activity, skill guidance, and read-only actions separately. The host applies a per-request item and character budget, labels contributions with provenance, shows an optional context section in the run timeline, and continues normally if an extension is missing, disabled, incompatible, slow, or malformed. Extensions never receive provider keys and cannot use this bridge to write notes or bypass the existing approval boundary.
 
-The approved `0.1.19` release remains an intact rollback point. The ecosystem host and companion-update controls are prepared as the `0.3.0` feature release; users on `0.1.19` continue to have the existing core behavior, while extensions remain usable locally until a compatible host release is installed.
+The approved `0.1.19` release remains an intact rollback point. The ecosystem host and companion-update controls were introduced in `0.3.0`; the current follow-up is `0.3.2`. Users on `0.1.19` continue to have the existing core behavior, while extensions remain usable locally until a compatible host release is installed.
 
 ## Companion installation and updates
 
@@ -65,6 +65,10 @@ The following captures show the mobile interaction model, helper marketplace, in
 ![Obsidian Community installation](docs/screenshots/community-install.png)
 
 ## Latest release notes
+
+### 0.3.2 — Codex privacy and companion lifecycle fixes
+
+This patch keeps companion release checks disabled until first-install setup is explicitly confirmed, shows unavailable release checks instead of reporting everything as current, honors custom Obsidian config directories, orders stable releases above prereleases, and keeps the protocol documentation aligned with the runtime contract. It also preserves companion registrations after a host reload by using the registry’s current state.
 
 ### 0.3.1 — Companion settings action fix
 
