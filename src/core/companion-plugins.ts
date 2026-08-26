@@ -1,4 +1,4 @@
-export type CompanionPluginId = "niplex-skills-helper" | "obsidian-icon-folder";
+export type CompanionPluginId = "niplex-skills-helper" | "obsidian-icon-folder" | "niplex-research-brain" | "niplex-writing-insights";
 
 export interface CompanionPluginDefinition {
 	id: CompanionPluginId;
@@ -24,17 +24,37 @@ export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
 		description: "Look up and preview five-character instruction-skill packages.",
 		communitySearchName: "Niplex Skills Helper",
 		manualInstallUrl: "https://github.com/Aj-Niplex/niplex-obsidian-helper/releases/latest",
-		expectedVersion: "0.1.3",
+					expectedVersion: "0.2.0",
+
 		required: true,
 	},
-	{
-		id: "obsidian-icon-folder",
-		name: "Iconize",
-		description: "Optional file and folder icons. Niplex Research AI does not require it for its own interface.",
-		communitySearchName: "Iconize",
-		manualInstallUrl: "https://github.com/FlorianWoelki/obsidian-iconize/releases/latest",
-		required: false,
-	},
+			{
+			id: "obsidian-icon-folder",
+			name: "Iconize",
+			description: "Optional file and folder icons. Niplex Research AI does not require it for its own interface.",
+			communitySearchName: "Iconize",
+			manualInstallUrl: "https://github.com/FlorianWoelki/obsidian-iconize/releases/latest",
+			required: false,
+		},
+		{
+			id: "niplex-research-brain",
+			name: "Niplex Research Brain",
+			description: "Optional connection index and provenance-labelled research map for bounded agent context.",
+			communitySearchName: "Niplex Research Brain",
+			manualInstallUrl: "https://github.com/Aj-Niplex/Niplex-Research-Brain/releases/latest",
+			expectedVersion: "0.2.0",
+			required: false,
+		},
+		{
+			id: "niplex-writing-insights",
+			name: "Niplex Writing Insights",
+			description: "Optional local writing heatmap and coarse activity context for the Niplex ecosystem.",
+			communitySearchName: "Niplex Writing Insights",
+			manualInstallUrl: "https://github.com/Aj-Niplex/Niplex-Writing-Insights/releases/latest",
+			expectedVersion: "0.2.0",
+			required: false,
+		},
+
 ];
 
 function versionAtLeast(actual: string | undefined, expected: string | undefined): boolean {

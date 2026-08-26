@@ -2,6 +2,7 @@ import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { AgentSettings, ProviderId } from "./core/types";
 import { sanitizeVaultPath } from "./core/path-utils";
 import { ApprovalPolicyModal, type ApprovalPolicyHost } from "./ui/approval-policy-modal";
+import { EcosystemPermissionModal, type EcosystemPermissionHost } from "./ui/ecosystem-modal";
 
 type SettingDefinitionItem = {
 	type?: "group";
@@ -13,7 +14,7 @@ type SettingDefinitionItem = {
 	items?: SettingDefinitionItem[];
 };
 
-export interface SettingsHost extends ApprovalPolicyHost {
+export interface SettingsHost extends ApprovalPolicyHost, EcosystemPermissionHost {
 	settings: AgentSettings;
 	saveSettings(): Promise<void>;
 	setSecret(id: string, value: string): void;
@@ -201,9 +202,10 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 					},
 				],
 			},
-			{
-				type: "group",
-				heading: "Research controls",
+							{
+					type: "group",
+					heading: "Research controls",
+
 				items: [
 					{
 						name: "System prompts",
@@ -215,8 +217,16 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 								.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => host.openPrompts()));
 						},
 					},
-					actionSetting(
-						"First-time walkthrough",
+											{
+							name: "Niplex ecosystem",
+							desc: "Connect optional Niplex extensions and choose exactly which bounded data classes the Research AI may use.",
+								render: (setting) => {
+									setting.setName("Niplex ecosystem").setDesc("Connect optional niplex extensions and choose exactly which bounded data classes the research AI may use.").addButton((button) => button.setButtonText("Manage permissions").onClick(() => { new EcosystemPermissionModal(this.app, host).open(); }));
+								},
+						},
+						actionSetting(
+							"First-time walkthrough",
+
 						"Review privacy, bounded reading, MOC-first navigation, fallback, and write approvals.",
 						"Show walkthrough",
 						() => host.openWalkthrough(),
@@ -403,8 +413,14 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 			}),
 			);
 
+						new Setting(containerEl)
+					.setName("Niplex ecosystem")
+					.setDesc("Manage optional niplex extensions and explicit bounded data permissions.")
+					.addButton((button) => button.setButtonText("Manage permissions").onClick(() => new EcosystemPermissionModal(this.app, this.host).open()));
+
 			new Setting(containerEl)
-				.setName("System prompts")
+					.setName("System prompts")
+
 				.setDesc("View the protected built-in prompt and edit your additive custom system prompt.")
 				.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => this.host.openPrompts()));
 

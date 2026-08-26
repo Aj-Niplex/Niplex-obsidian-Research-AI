@@ -28,6 +28,14 @@ The plugin searches note names and metadata first, opens bounded line windows wh
 | Inline controls | Type `@path/to/note.md` or `@Folder/` to add bounded vault context directly. Type `/skill` to choose built-in or installed skills and set answer size from Lowest to Maximum. |
 | Public video input | Detects one public YouTube URL in a focused question and sends it to Gemini as a bounded `fileData.fileUri` video part. Agnes receives the URL as text because its current adapter does not claim native video input. |
 
+## Niplex ecosystem host
+
+The core is the host for a broader Niplex ecosystem. Research Brain, Writing Insights, Skills Helper, and future modules remain separate repositories and separate Community plugins, but a compatible host can discover them through the versioned `niplex-ecosystem` protocol. Each extension declares its capabilities and data classes, then registers through a runtime API only when the host is installed and enabled.
+
+Every extension begins with no data permission. The user grants bounded context, note metadata, map provenance, coarse activity, skill guidance, and read-only actions separately. The host applies a per-request item and character budget, labels contributions with provenance, shows an optional context section in the run timeline, and continues normally if an extension is missing, disabled, incompatible, slow, or malformed. Extensions never receive provider keys and cannot use this bridge to write notes or bypass the existing approval boundary.
+
+The approved `0.1.19` release remains untouched. The ecosystem bridge is prepared as a backward-compatible future core release; users on `0.1.19` continue to have the existing core behavior, while extensions remain usable locally until a compatible host release is installed.
+
 ## Mobile interaction model
 
 The main view keeps the conversation visible and moves less frequent controls behind **Actions**. On mobile, optional shortcut icons are collapsed so the screen stays focused; model and research mode remain available in the compact control row. The composer stays at the bottom: the text field is on the left, with context and one stateful send/stop control on the right. While a run is active, that same button becomes a red **Stop** control and returns to Send when the run ends.
@@ -49,6 +57,11 @@ The following captures show the mobile interaction model, helper marketplace, in
 ![Obsidian Community installation](docs/screenshots/community-install.png)
 
 ## Latest release notes
+
+### Ecosystem bridge preparation
+
+A versioned host contract is being developed separately from the approved public release. It adds explicit extension discovery, deny-by-default permissions, bounded context requests, read-only extension actions, provenance labels, timeouts, and failure isolation. It does not silently download, enable, or execute another plugin.
+
 
 ### 0.1.19 — Community review warning cleanup
 
@@ -72,6 +85,12 @@ flowchart LR
     TOOLS --> VAULT(("User vault"))
     RUNTIME --> APPROVAL("Write approval boundary")
     APPROVAL --> VAULT
+    HOST("Versioned ecosystem host") --> BRAIN("Research Brain")
+    HOST --> INSIGHTS("Writing Insights")
+    HOST --> SKILLS("Skills Helper")
+    BRAIN -->|bounded map metadata| RUNTIME
+    INSIGHTS -->|coarse activity only| RUNTIME
+    SKILLS -->|selected additive guidance| RUNTIME
 ```
 
 ### Context boundary
