@@ -66,6 +66,10 @@ The following captures show the mobile interaction model, helper marketplace, in
 
 ## Latest release notes
 
+### 0.3.1 — Companion settings action fix
+
+When a companion is already installed but disabled, the Settings manager now opens Obsidian’s Community plugins screen instead of presenting an inactive installation action. This keeps enabling visible and user-controlled.
+
 ### 0.3.0 — Ecosystem host and companion update controls
 
 This feature release adds explicit extension discovery, deny-by-default permissions, bounded context requests, read-only extension actions, provenance labels, timeouts, and failure isolation. It also adds a transparent first-run companion installer, allowlisted release checks on restart, explicit confirmation before downloads or enabling, rollback-aware replacement, and expandable release notes explaining what changed and how each update affects the user. It never silently downloads, enables, or executes another plugin.
