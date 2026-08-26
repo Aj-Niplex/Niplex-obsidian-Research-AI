@@ -2,6 +2,7 @@ import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { AgentSettings, ProviderId } from "./core/types";
 import { sanitizeVaultPath } from "./core/path-utils";
 import { ApprovalPolicyModal, type ApprovalPolicyHost } from "./ui/approval-policy-modal";
+import { EcosystemPermissionModal, type EcosystemPermissionHost } from "./ui/ecosystem-modal";
 
 type SettingDefinitionItem = {
 	type?: "group";
@@ -13,7 +14,7 @@ type SettingDefinitionItem = {
 	items?: SettingDefinitionItem[];
 };
 
-export interface SettingsHost extends ApprovalPolicyHost {
+export interface SettingsHost extends ApprovalPolicyHost, EcosystemPermissionHost {
 	settings: AgentSettings;
 	saveSettings(): Promise<void>;
 	setSecret(id: string, value: string): void;
@@ -23,6 +24,7 @@ export interface SettingsHost extends ApprovalPolicyHost {
 	openWalkthrough(): void;
 	openDiagnostics(): void;
 	openPrompts(): void;
+	openCompanionInstaller(mode: "first-install" | "updates" | "settings"): void;
 }
 
 export class AgenticResearchSettingTab extends PluginSettingTab {
@@ -201,9 +203,10 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 					},
 				],
 			},
-			{
-				type: "group",
-				heading: "Research controls",
+							{
+					type: "group",
+					heading: "Research controls",
+
 				items: [
 					{
 						name: "System prompts",
@@ -215,8 +218,32 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 								.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => host.openPrompts()));
 						},
 					},
-					actionSetting(
-						"First-time walkthrough",
+																		{
+								name: "Niplex ecosystem",
+								desc: "Connect optional Niplex extensions and choose exactly which bounded data classes the Research AI may use.",
+								render: (setting) => {
+									setting.setName("Niplex ecosystem").setDesc("Connect optional niplex extensions and choose exactly which bounded data classes the research AI may use.").addButton((button) => button.setButtonText("Manage permissions").onClick(() => { new EcosystemPermissionModal(this.app, host).open(); }));
+								},
+							},
+							{
+								name: "Companion reminders",
+								desc: "While Obsidian is running, surface important missing companions at most once every two hours.",
+								render: (setting) => {
+									setting.setName("Companion reminders").setDesc("While Obsidian is running, surface important missing companions at most once every two hours.").addToggle((toggle) => toggle.setValue(host.settings.companionRemindersEnabled).onChange((value) => { host.settings.companionRemindersEnabled = value; void host.saveSettings(); }));
+								},
+							},
+							{
+								name: "Check updates on restart",
+								desc: "Check allowlisted companion release metadata when Obsidian starts and ask before installing updates.",
+								render: (setting) => {
+									setting.setName("Check updates on restart").setDesc("Check allowlisted companion release metadata when Obsidian starts and ask before installing updates.").addToggle((toggle) => toggle.setValue(host.settings.companionUpdateChecksEnabled).onChange((value) => { host.settings.companionUpdateChecksEnabled = value; void host.saveSettings(); }));
+								},
+							},
+							actionSetting("Companion installs and updates", "Review important and optional companion plugins, release notes, and installation actions.", "Manage companions", () => host.openCompanionInstaller("settings")),
+
+						actionSetting(
+							"First-time walkthrough",
+
 						"Review privacy, bounded reading, MOC-first navigation, fallback, and write approvals.",
 						"Show walkthrough",
 						() => host.openWalkthrough(),
@@ -403,8 +430,29 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 			}),
 			);
 
+							new Setting(containerEl)
+										.setName("Niplex ecosystem")
+										.setDesc("Manage optional niplex extensions and explicit bounded data permissions.")
+										.addButton((button) => button.setButtonText("Manage permissions").onClick(() => new EcosystemPermissionModal(this.app, this.host).open()));
+
+				new Setting(containerEl)
+					.setName("Companion reminders")
+					.setDesc("While Obsidian is running, surface important missing companions at most once every two hours.")
+					.addToggle((toggle) => toggle.setValue(this.host.settings.companionRemindersEnabled).onChange(async (value) => { this.host.settings.companionRemindersEnabled = value; await this.host.saveSettings(); }));
+
+				new Setting(containerEl)
+					.setName("Check updates on restart")
+					.setDesc("Check allowlisted companion release metadata when Obsidian starts and ask before installing updates.")
+					.addToggle((toggle) => toggle.setValue(this.host.settings.companionUpdateChecksEnabled).onChange(async (value) => { this.host.settings.companionUpdateChecksEnabled = value; await this.host.saveSettings(); }));
+
+				new Setting(containerEl)
+					.setName("Companion installs and updates")
+					.setDesc("Review important and optional companion plugins, release notes, and installation actions.")
+					.addButton((button) => button.setButtonText("Manage companions").onClick(() => this.host.openCompanionInstaller("settings")));
+
 			new Setting(containerEl)
-				.setName("System prompts")
+					.setName("System prompts")
+
 				.setDesc("View the protected built-in prompt and edit your additive custom system prompt.")
 				.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => this.host.openPrompts()));
 
