@@ -7,6 +7,7 @@ export interface CompanionInstallHost {
 	getCompanionCandidates(mode: CompanionInstallMode): Promise<CompanionInstallCandidate[]>;
 	installCompanion(candidate: CompanionInstallCandidate, enableAfterInstall: boolean): Promise<void>;
 	markCompanionSetupConfirmed(): Promise<void>;
+	openCommunityPlugins(): void;
 }
 
 export class CompanionInstallModal extends Modal {
@@ -71,8 +72,11 @@ export class CompanionInstallModal extends Modal {
 			}
 			if (this.mode === "settings") {
 				const install = card.createEl("button", { text: this.buttonText(candidate), attr: { type: "button" } });
-				install.disabled = this.busy || !candidate.latestRelease || candidate.reason === "disabled";
-				install.addEventListener("click", () => void this.installOne(candidate));
+				install.disabled = this.busy || !candidate.latestRelease;
+				install.addEventListener("click", () => {
+					if (candidate.reason === "disabled") this.host.openCommunityPlugins();
+					else void this.installOne(candidate);
+				});
 			}
 		}
 		if (this.mode !== "settings" && this.candidates.length) {
