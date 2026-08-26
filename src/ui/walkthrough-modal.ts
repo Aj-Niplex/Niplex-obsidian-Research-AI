@@ -11,6 +11,7 @@ export interface WalkthroughHost {
 	openMocBuilder(autoStart?: boolean): void;
 	openCommunityPlugins(): void;
 	getCompanionStatus(pluginId: CompanionPluginId): Promise<CompanionPluginStatus>;
+	openCompanionInstaller(mode: "first-install" | "updates" | "settings"): void;
 }
 
 const MOC_ROOT = "MOCs";
@@ -42,12 +43,13 @@ export class WalkthroughModal extends Modal {
 		const setupStatus = setupCard.createDiv({ cls: "oar-setup-status", attr: { "aria-live": "polite" } });
 		setupStatus.textContent = "Checking the local workspace and companion plugins…";
 		const setupAction = setupCard.createEl("button", { text: "Checking setup…", cls: "oar-setup-progress-button", attr: { type: "button" } });
-		setupAction.disabled = true;
+			setupAction.disabled = true;
+			setupAction.addEventListener("click", () => this.host.openCompanionInstaller("first-install"));
 
 		const companionCard = contentEl.createDiv({ cls: "oar-companion-card" });
 		companionCard.createEl("strong", { text: "Companion plugins" });
 		companionCard.createEl("p", {
-			text: "Niplex skills helper is recommended for the skill marketplace. Iconize is optional. If one is missing or needs an update, the primary button opens Obsidian’s community plugins screen; GitHub is shown only as a manual fallback. This plugin never silently downloads, enables, or replaces third-party code.",
+				text: "Niplex skills helper and research brain are important companions for the full ecosystem. On first setup, we will show their versions and release notes, then ask before downloading and enabling anything. Iconize and writing insights remain optional and are managed from settings. This plugin never silently downloads, enables, or replaces third-party code.",
 			cls: "oar-muted",
 		});
 		for (const definition of COMPANION_PLUGINS) this.renderCompanion(companionCard, definition.id);
@@ -198,9 +200,14 @@ export class WalkthroughModal extends Modal {
 			if (!status.isConnected) return;
 			status.textContent = message;
 		}
-		action.disabled = false;
-		action.textContent = "Setup checks complete";
-		if (this.host.settings.mocLocationConfigured) this.locationSelected = true;
+					action.disabled = false;
+			action.textContent = this.host.settings.companionSetupConfirmed ? "Setup checks complete" : "Review important companions";
+			if (this.host.settings.mocLocationConfigured) this.locationSelected = true;
+			if (!this.host.settings.companionSetupConfirmed) {
+				await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+				this.host.openCompanionInstaller("first-install");
+			}
+
 	}
 
 	private async startMocSetup(): Promise<void> {

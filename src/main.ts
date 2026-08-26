@@ -20,8 +20,11 @@ import { normalizeUserSystemPrompt } from "./core/system-prompt";
 import { boundInjectedContext, boundText, CONTEXT_BUDGETS } from "./core/context-budget";
 import { compactChatMessages } from "./core/chat-history";
 import { deriveChatSubject, normalizeGeneratedSubject } from "./core/chat-subject";
-import { getCompanionDefinition, isCompanionVersionCurrent, type CompanionPluginId, type CompanionPluginStatus } from "./core/companion-plugins";
+import { COMPANION_PLUGINS, getCompanionDefinition, isCompanionVersionCurrent, type CompanionPluginId, type CompanionPluginStatus } from "./core/companion-plugins";
+import { fetchLatestCompanionRelease, installCompanionRelease, type CompanionInstallCandidate } from "./core/companion-updater";
+import { compareVersions, isReleaseNewer } from "./core/version-utils";
 import { NIPLEX_ECOSYSTEM_PROTOCOL, NIPLEX_ECOSYSTEM_PROTOCOL_VERSION, emptyEcosystemGrant, normalizeEcosystemContribution, permissionAllowsDataClass, type EcosystemPermissionGrant, type NiplexActionSummary, type NiplexContextContribution, type NiplexContextRequest, type NiplexExtension, type NiplexExtensionSummary, type NiplexPermissionKey, type NiplexRegistration, type NiplexResearchHostApi } from "./core/ecosystem";
+import { CompanionInstallModal, type CompanionInstallHost, type CompanionInstallMode } from "./ui/companion-install-modal";
 
 interface PersistedData {
 	settings: AgentSettings;
@@ -59,7 +62,7 @@ function normalizeChat(value: unknown): SavedChat | null {
 		};
 }
 
-export default class AgenticResearchPlugin extends Plugin implements SettingsHost, AgentViewHost {
+export default class AgenticResearchPlugin extends Plugin implements SettingsHost, AgentViewHost, CompanionInstallHost {
 	settings: AgentSettings = { ...DEFAULT_SETTINGS };
 	private chats: SavedChat[] = [];
 	private diagnostics = new DiagnosticsStore();
@@ -68,6 +71,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	private activeMocOrganizer: MocOrganizer | null = null;
 	private readonly modelCatalogueCache = new Map<ProviderId, { fetchedAt: number; models: ProviderModel[] }>();
 	private readonly ecosystemExtensions = new Map<string, NiplexExtension>();
+	private companionCheckInFlight = false;
 	public ecosystemApi?: NiplexResearchHostApi;
 
 	async onload(): Promise<void> {
@@ -128,8 +132,14 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 			name: "Open agentic research diagnostics",
 			callback: () => this.openDiagnostics(),
 		});
+				this.addCommand({
+				id: "check-niplex-companion-updates",
+				name: "Check niplex companion updates",
+				callback: () => void this.checkCompanionUpdates(true),
+			});
 		this.addCommand({
-			id: "open-agentic-research-prompts",
+				id: "open-agentic-research-prompts",
+
 			name: "Open agentic research system prompts",
 			callback: () => this.openPrompts(),
 		});
@@ -138,7 +148,10 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 			// Remove old and unresolved restored leaves, but keep a real AgentView if Obsidian recreated it successfully.
 			this.app.workspace.detachLeavesOfType(LEGACY_AGENT_VIEW_TYPE);
 			this.removeStaleAgentLeaves();
-			if (!this.settings.onboardingCompleted) window.setTimeout(() => this.openWalkthrough(), 250);
+							if (!this.settings.onboardingCompleted) window.setTimeout(() => this.openWalkthrough(), 250);
+				else window.setTimeout(() => void this.runCompanionStartupChecks(), 700);
+				this.registerInterval(window.setInterval(() => void this.runCompanionStartupChecks(), 2 * 60 * 60 * 1000));
+
 		});
 	}
 
@@ -311,7 +324,104 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		return { ...definition, installed, enabled, installedVersion, upToDate };
 	}
 
+		openCompanionInstaller(mode: CompanionInstallMode): void {
+		new CompanionInstallModal(this.app, this, mode).open();
+	}
+
+	async getCompanionCandidates(mode: CompanionInstallMode): Promise<CompanionInstallCandidate[]> {
+		const definitions = mode === "first-install" ? COMPANION_PLUGINS.filter((definition) => definition.priority === "important") : [...COMPANION_PLUGINS];
+		const candidates: CompanionInstallCandidate[] = [];
+		for (const definition of definitions) {
+			const status = await this.getCompanionStatus(definition.id);
+			if (mode === "updates" && (!status.installed || !status.installedVersion)) continue;
+			let latestRelease;
+			try {
+				latestRelease = await fetchLatestCompanionRelease(definition);
+			} catch (error) {
+				this.recordDiagnostic("warn", "companion-release-check-failed", `${definition.id}: ${error instanceof Error ? error.message : "Release metadata unavailable."}`);
+				continue;
+			}
+			if (definition.expectedVersion && compareVersions(latestRelease.version, definition.expectedVersion) < 0) {
+				this.recordDiagnostic("warn", "companion-release-below-target", `${definition.id}: latest release ${latestRelease.version} is below the host target ${definition.expectedVersion}.`);
+				continue;
+			}
+			const updateAvailable = isReleaseNewer(latestRelease.version, status.installedVersion);
+			const needsAction = !status.installed || updateAvailable || !status.upToDate || !status.enabled;
+			if (mode === "updates" && !updateAvailable) continue;
+			if (mode === "first-install" && status.installed && status.upToDate) continue;
+			if (mode === "settings" && !needsAction) continue;
+			candidates.push({
+				definition,
+				installed: status.installed,
+				enabled: status.enabled,
+				installedVersion: status.installedVersion,
+				latestVersion: latestRelease.version,
+				latestRelease,
+				reason: !status.installed ? "missing" : !status.enabled ? "disabled" : updateAvailable || !status.upToDate ? "update" : "disabled",
+			});
+		}
+		return candidates;
+	}
+
+	async installCompanion(candidate: CompanionInstallCandidate, enableAfterInstall: boolean): Promise<void> {
+		await installCompanionRelease(this.app, candidate, enableAfterInstall);
+		this.recordDiagnostic("info", "companion-installed", `${candidate.definition.id} ${candidate.latestVersion ?? "unknown"} installed after explicit user confirmation.`);
+	}
+
+	async markCompanionSetupConfirmed(): Promise<void> {
+		this.settings.companionSetupConfirmed = true;
+		await this.saveSettings();
+	}
+
+	private async runCompanionStartupChecks(): Promise<void> {
+		if (this.companionCheckInFlight) return;
+		this.companionCheckInFlight = true;
+		try {
+			if (this.settings.companionUpdateChecksEnabled) {
+				const updates = await this.getCompanionCandidates("updates");
+				this.settings.lastCompanionUpdateCheckAt = Date.now();
+				await this.persistData();
+				if (updates.length) {
+					new Notice(`${updates.length} Niplex companion update${updates.length === 1 ? "" : "s"} available.`, 7000);
+					this.openCompanionInstaller("updates");
+					return;
+				}
+			}
+			if (this.settings.companionRemindersEnabled && Date.now() - this.settings.lastCompanionReminderAt >= 2 * 60 * 60 * 1000) {
+				const important = await this.getCompanionCandidates("first-install");
+				if (important.length) {
+					this.settings.lastCompanionReminderAt = Date.now();
+					await this.persistData();
+					new Notice("Important niplex companions are ready to review.", 7000);
+					this.openCompanionInstaller("first-install");
+				}
+			}
+		} catch (error) {
+			this.recordDiagnostic("warn", "companion-maintenance-failed", error instanceof Error ? error.message : "Companion maintenance could not finish.");
+		} finally {
+			this.companionCheckInFlight = false;
+		}
+	}
+
+	async checkCompanionUpdates(manual = false): Promise<void> {
+		if (this.companionCheckInFlight) return;
+		if (!manual && !this.settings.companionUpdateChecksEnabled) return;
+		this.companionCheckInFlight = true;
+		try {
+			const updates = await this.getCompanionCandidates("updates");
+			this.settings.lastCompanionUpdateCheckAt = Date.now();
+			await this.persistData();
+			if (updates.length) this.openCompanionInstaller("updates");
+			else new Notice("All installed niplex companions are up to date.");
+		} catch (error) {
+			new Notice(error instanceof Error ? error.message : "Could not check Niplex companion updates.", 7000);
+		} finally {
+			this.companionCheckInFlight = false;
+		}
+	}
+
 	openDiagnostics(): void {
+
 		new DiagnosticsModal(this.app, this).open();
 	}
 

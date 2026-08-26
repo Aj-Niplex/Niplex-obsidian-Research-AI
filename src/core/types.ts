@@ -167,6 +167,11 @@ export interface AgentSettings {
 	onboardingVersion: number;
 	onboardingCompleted: boolean;
 	ecosystemPermissions: Record<string, EcosystemPermissionGrant>;
+	companionRemindersEnabled: boolean;
+	companionUpdateChecksEnabled: boolean;
+	lastCompanionReminderAt: number;
+	lastCompanionUpdateCheckAt: number;
+	companionSetupConfirmed: boolean;
 }
 
 export const DEFAULT_SETTINGS: AgentSettings = {
@@ -194,4 +199,9 @@ export const DEFAULT_SETTINGS: AgentSettings = {
 	onboardingVersion: 0,
 	onboardingCompleted: false,
 	ecosystemPermissions: {},
+	companionRemindersEnabled: true,
+	companionUpdateChecksEnabled: true,
+	lastCompanionReminderAt: 0,
+	lastCompanionUpdateCheckAt: 0,
+	companionSetupConfirmed: false,
 };

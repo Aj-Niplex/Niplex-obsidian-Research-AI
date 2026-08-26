@@ -7,6 +7,8 @@ export interface CompanionPluginDefinition {
 	communitySearchName: string;
 	manualInstallUrl: string;
 	expectedVersion?: string;
+	priority: "important" | "optional";
+	releaseNotesUrl: string;
 	required: boolean;
 }
 
@@ -24,9 +26,11 @@ export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
 		description: "Look up and preview five-character instruction-skill packages.",
 		communitySearchName: "Niplex Skills Helper",
 		manualInstallUrl: "https://github.com/Aj-Niplex/niplex-obsidian-helper/releases/latest",
-					expectedVersion: "0.2.0",
+								expectedVersion: "0.2.0",
+			priority: "important",
+			releaseNotesUrl: "https://github.com/Aj-Niplex/niplex-obsidian-helper/releases/latest",
+			required: true,
 
-		required: true,
 	},
 			{
 			id: "obsidian-icon-folder",
@@ -34,6 +38,8 @@ export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
 			description: "Optional file and folder icons. Niplex Research AI does not require it for its own interface.",
 			communitySearchName: "Iconize",
 			manualInstallUrl: "https://github.com/FlorianWoelki/obsidian-iconize/releases/latest",
+			priority: "optional",
+			releaseNotesUrl: "https://github.com/FlorianWoelki/obsidian-iconize/releases/latest",
 			required: false,
 		},
 		{
@@ -43,6 +49,8 @@ export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
 			communitySearchName: "Niplex Research Brain",
 			manualInstallUrl: "https://github.com/Aj-Niplex/Niplex-Research-Brain/releases/latest",
 			expectedVersion: "0.2.0",
+			priority: "important",
+			releaseNotesUrl: "https://github.com/Aj-Niplex/Niplex-Research-Brain/releases/latest",
 			required: false,
 		},
 		{
@@ -51,11 +59,12 @@ export const COMPANION_PLUGINS: readonly CompanionPluginDefinition[] = [
 			description: "Optional local writing heatmap and coarse activity context for the Niplex ecosystem.",
 			communitySearchName: "Niplex Writing Insights",
 			manualInstallUrl: "https://github.com/Aj-Niplex/Niplex-Writing-Insights/releases/latest",
-			expectedVersion: "0.2.0",
+						expectedVersion: "0.2.0",
+			priority: "optional",
+			releaseNotesUrl: "https://github.com/Aj-Niplex/Niplex-Writing-Insights/releases/latest",
 			required: false,
 		},
-
-];
+	];
 
 function versionAtLeast(actual: string | undefined, expected: string | undefined): boolean {
 	if (!expected) return true;

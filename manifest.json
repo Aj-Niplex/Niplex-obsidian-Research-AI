@@ -1,7 +1,7 @@
 {
 	"id": "niplex-agentic-research",
 	"name": "Niplex Research AI",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"minAppVersion": "1.11.4",
 	"description": "Autonomous mobile-first vault research assistant with a stoppable runtime timeline, user-controlled chat-window sizing, bounded note context, inline @ mentions, /skill controls, and approval-safe edits.",
 	"author": "Aj-Niplex",

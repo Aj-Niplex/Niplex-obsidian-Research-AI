@@ -61,6 +61,21 @@ test("normalizes the chat-window size preference", () => {
 	assert.equal(normalizeAgentSettings({}).windowSize, "comfortable");
 });
 
+test("defaults companion reminders and restart checks safely", () => {
+	const fresh = normalizeAgentSettings({});
+	assert.equal(fresh.companionRemindersEnabled, true);
+	assert.equal(fresh.companionUpdateChecksEnabled, true);
+	assert.equal(fresh.companionSetupConfirmed, false);
+	assert.equal(fresh.lastCompanionReminderAt, 0);
+	assert.equal(fresh.lastCompanionUpdateCheckAt, 0);
+	const migrated = normalizeAgentSettings({ companionRemindersEnabled: false, companionUpdateChecksEnabled: false, companionSetupConfirmed: true, lastCompanionReminderAt: -50, lastCompanionUpdateCheckAt: Number.POSITIVE_INFINITY });
+	assert.equal(migrated.companionRemindersEnabled, false);
+	assert.equal(migrated.companionUpdateChecksEnabled, false);
+	assert.equal(migrated.companionSetupConfirmed, true);
+	assert.equal(migrated.lastCompanionReminderAt, 0);
+	assert.equal(migrated.lastCompanionUpdateCheckAt, 0);
+});
+
 test("keeps the quick-action bar to three valid icons and defaults legacy mode to chat", () => {
 	const settings = normalizeAgentSettings({
 		quickActions: ["moc", "history", "logs", "attach", "moc", "unknown"],

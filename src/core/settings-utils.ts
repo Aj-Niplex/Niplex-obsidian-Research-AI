@@ -111,5 +111,10 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
 		onboardingVersion: numberValue("onboardingVersion", DEFAULT_SETTINGS.onboardingVersion, 0, 100),
 		onboardingCompleted: source.onboardingCompleted === true || (typeof source.onboardingVersion === "number" && source.onboardingVersion > 0),
 			ecosystemPermissions: normalizeEcosystemPermissions(source.ecosystemPermissions),
+		companionRemindersEnabled: source.companionRemindersEnabled !== false,
+		companionUpdateChecksEnabled: source.companionUpdateChecksEnabled !== false,
+		lastCompanionReminderAt: numberValue("lastCompanionReminderAt", 0, 0, Date.now()),
+		lastCompanionUpdateCheckAt: numberValue("lastCompanionUpdateCheckAt", 0, 0, Date.now()),
+		companionSetupConfirmed: source.companionSetupConfirmed === true,
 	};
 }
