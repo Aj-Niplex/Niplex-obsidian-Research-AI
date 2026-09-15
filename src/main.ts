@@ -510,6 +510,10 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	private getProvider(providerId = this.settings.provider): GeminiProvider | AgnesProvider {
 		const secretId = providerId === "gemini" ? "oar-gemini-api-key" : "oar-agnes-api-key";
 		const key = this.getSecret(secretId) ?? "";
+		if (!key.trim()) {
+			const providerName = providerId === "gemini" ? "Gemini" : "Agnes";
+			throw new Error(`${providerName} API key is not configured. Open Settings → Niplex Research AI, add the ${providerName} API key, then retry.`);
+		}
 		return providerId === "gemini" ? new GeminiProvider(key) : new AgnesProvider(key);
 	}
 
@@ -542,6 +546,7 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 				return replacement.id;
 			}
 		} catch (error) {
+			if (error instanceof Error && /API key is not configured/i.test(error.message)) throw error;
 			this.recordDiagnostic("warn", "model-catalogue-unavailable", error instanceof Error ? error.message : "Model catalogue unavailable.", configured);
 		}
 		return configured;
@@ -565,9 +570,17 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		selectedSkillCodes: string[] = [],
 		signal?: AbortSignal,
 	): Promise<AgentRunResult> {
-		await this.ensureUsableModel(this.settings.provider);
-		const query = prompt.toLowerCase();
-		const configuredModel = this.settings.provider === "gemini" ? this.settings.geminiModel : this.settings.agnesModel;
+			let preparedModel: string;
+			try {
+				preparedModel = await this.ensureUsableModel(this.settings.provider);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : "Provider setup is incomplete.";
+				this.recordDiagnostic("error", "provider-setup-required", message);
+				await this.persistData();
+				throw error;
+			}
+			const query = prompt.toLowerCase();
+			const configuredModel = preparedModel;
 		if (signal?.aborted) return { text: "Run stopped by the user.", messages: history, model: configuredModel, stopped: true };
 		const mentionsMemory = /\b(memory|personaliz|preference|remember|forget|profile|about me)\b/.test(query);
 		const uniqueAttachments = [...new Set(attachedFiles.map((path) => path.trim()).filter(Boolean))].slice(0, 8);
@@ -697,8 +710,16 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 			this.settings.mocLocationConfigured = true;
 			await this.saveSettings();
 		}
-		const model = await this.ensureUsableModel(this.settings.provider);
-		const fallbackModels = this.settings.provider === "gemini" ? this.settings.geminiFallbackModels : this.settings.agnesFallbackModels;
+					let model: string;
+			try {
+				model = await this.ensureUsableModel(this.settings.provider);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : "Provider setup is incomplete.";
+				this.recordDiagnostic("error", "provider-setup-required", message);
+				await this.persistData();
+				throw error;
+			}
+			const fallbackModels = this.settings.provider === "gemini" ? this.settings.geminiFallbackModels : this.settings.agnesFallbackModels;
 		const checkpoint = this.settings.mocCheckpoint?.mode === mode && this.settings.mocCheckpoint.rootPath === cleanRoot && this.settings.mocCheckpoint.onlyPath === onlyPath ? this.settings.mocCheckpoint : undefined;
 		const organizer = new MocOrganizer(this.getProvider(), model, this.createVaultContext(), fallbackModels, this.settings.autoFallbackOnRateLimit, this.settings.modelCooldowns, (level, event, message, usedModel) => this.recordDiagnostic(level, event, message, usedModel), checkpoint, this.settings.mocTimeBudgetSeconds, (nextCheckpoint) => {
 			this.settings.mocCheckpoint = nextCheckpoint;

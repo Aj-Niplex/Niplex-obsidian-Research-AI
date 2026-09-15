@@ -491,7 +491,7 @@ export class AgentView extends ItemView {
 		const subject = this.currentChat.subject ?? this.currentChat.title;
 		const loadedMessage = this.currentChat.messages.length ? `Loaded “${subject}”.` : "Ready. Start with a focused research question.";
 		this.setLiveStatus(loadedMessage);
-		this.appendSystem(loadedMessage);
+		if (this.currentChat.messages.length) this.appendSystem(loadedMessage);
 		for (const message of this.currentChat.messages) {
 			if (message.role === "user") this.appendUser(message.content);
 			else if (message.role === "assistant" && message.content && !message.toolCalls?.length) this.appendAssistant(message.content);

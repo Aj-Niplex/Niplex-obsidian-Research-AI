@@ -214,7 +214,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 						render: (setting) => {
 							setting
 								.setName("System prompts")
-								.setDesc("View the protected built-in prompt and edit your additive custom system prompt.")
+								.setDesc("View the protected prompt and edit your additional instructions.")
 								.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => host.openPrompts()));
 						},
 					},
@@ -453,7 +453,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 			new Setting(containerEl)
 					.setName("System prompts")
 
-				.setDesc("View the protected built-in prompt and edit your additive custom system prompt.")
+				.setDesc("View the protected prompt and edit your additional instructions.")
 				.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => this.host.openPrompts()));
 
 			new Setting(containerEl)
@@ -475,17 +475,17 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("First-time walkthrough")
-				.setDesc("Review privacy, bounded reading, moc-first navigation, fallback, and write approvals.")
+				.setDesc("Review privacy, bounded reading, maps, fallback, and approvals.")
 				.addButton((button) => button.setButtonText("Show walkthrough").onClick(() => this.host.openWalkthrough()));
 
 			new Setting(containerEl)
 				.setName("Share diagnostics")
-				.setDesc("Open redacted local logs for sharing when a run or model fallback needs troubleshooting.")
+				.setDesc("Open local logs with secrets and vault content removed.")
 				.addButton((button) => button.setButtonText("Open logs").onClick(() => this.host.openDiagnostics()));
 
 			new Setting(containerEl)
 				.setName("Moc foreground time budget (seconds)")
-				.setDesc("Pause a long moc build after this many seconds at a safe note boundary. This is a mobile responsiveness guard, not a note-count limit.")
+				.setDesc("Pause a long map build after this time at a safe note boundary.")
 				.addText((text) => text.setValue(String(this.host.settings.mocTimeBudgetSeconds)).onChange(async (value) => {
 					const parsed = Number.parseInt(value, 10);
 					if (Number.isFinite(parsed)) {
@@ -496,7 +496,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Maximum agent steps")
-			.setDesc("Hard cap on tool-loop iterations per prompt.")
+			.setDesc("Maximum safe actions for one question.")
 			.addText((text) =>
 				text.setValue(String(this.host.settings.maxIterations)).onChange(async (value) => {
 					const parsed = Number.parseInt(value, 10);
@@ -509,7 +509,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Maximum read lines")
-			.setDesc("Maximum lines returned by one read_file_chunk call.")
+			.setDesc("Maximum lines returned from one note read.")
 			.addText((text) =>
 				text.setValue(String(this.host.settings.maxReadLines)).onChange(async (value) => {
 					const parsed = Number.parseInt(value, 10);
