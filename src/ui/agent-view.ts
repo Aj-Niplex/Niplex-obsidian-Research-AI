@@ -1,6 +1,7 @@
 import { ItemView, MarkdownRenderer, Notice, setIcon, WorkspaceLeaf } from "obsidian";
 import type { AgentEvent, AgentRunResult } from "../core/agent-runtime";
 import type { AgentSettings, ChatMessage, InstalledSkill, ProviderId, ProviderModel, QuickActionId, SavedChat } from "../core/types";
+import type { NiplexActionSummary } from "../core/ecosystem";
 import { CONTEXT_BUDGETS } from "../core/context-budget";
 import { compactChatMessages } from "../core/chat-history";
 import { deriveChatSubject } from "../core/chat-subject";
@@ -28,6 +29,8 @@ export interface AgentViewHost extends MocHost, FilePickerHost {
 	saveChat(chat: SavedChat): Promise<void>;
 	deleteChat(id: string): Promise<void>;
 	getInstalledSkills(): Promise<InstalledSkill[]>;
+	getEcosystemActions(): NiplexActionSummary[];
+	runEcosystemAction(action: NiplexActionSummary, query?: string): Promise<void>;
 }
 
 function newChat(): SavedChat {
@@ -442,13 +445,15 @@ export class AgentView extends ItemView {
 			onOpenLogs: () => this.host.openDiagnostics(),
 			onOpenPrompts: () => this.host.openPrompts(),
 							onOpenMemory: () => this.host.openMemoryFile(),
-				onWindowSizeChange: async (size) => {
-					this.host.settings.windowSize = size;
-					await this.host.saveSettings();
-					this.applyWindowSize();
-				},
+					onWindowSizeChange: async (size) => {
+						this.host.settings.windowSize = size;
+						await this.host.saveSettings();
+						this.applyWindowSize();
+					},
+					getEcosystemActions: () => this.host.getEcosystemActions(),
+					onEcosystemAction: (action) => this.host.runEcosystemAction(action, this.lastPrompt),
 
-		};
+			};
 		new ActionSheetModal(this.app, sheetHost).open();
 	}
 
@@ -486,7 +491,7 @@ export class AgentView extends ItemView {
 		const subject = this.currentChat.subject ?? this.currentChat.title;
 		const loadedMessage = this.currentChat.messages.length ? `Loaded “${subject}”.` : "Ready. Start with a focused research question.";
 		this.setLiveStatus(loadedMessage);
-		if (this.currentChat.messages.length) this.appendSystem(loadedMessage);
+		this.appendSystem(loadedMessage);
 		for (const message of this.currentChat.messages) {
 			if (message.role === "user") this.appendUser(message.content);
 			else if (message.role === "assistant" && message.content && !message.toolCalls?.length) this.appendAssistant(message.content);

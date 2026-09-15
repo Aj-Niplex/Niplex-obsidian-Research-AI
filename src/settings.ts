@@ -2,6 +2,7 @@ import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { AgentSettings, ProviderId } from "./core/types";
 import { sanitizeVaultPath } from "./core/path-utils";
 import { ApprovalPolicyModal, type ApprovalPolicyHost } from "./ui/approval-policy-modal";
+import { EcosystemPermissionModal, type EcosystemPermissionHost } from "./ui/ecosystem-modal";
 
 type SettingDefinitionItem = {
 	type?: "group";
@@ -13,7 +14,7 @@ type SettingDefinitionItem = {
 	items?: SettingDefinitionItem[];
 };
 
-export interface SettingsHost extends ApprovalPolicyHost {
+export interface SettingsHost extends ApprovalPolicyHost, EcosystemPermissionHost {
 	settings: AgentSettings;
 	saveSettings(): Promise<void>;
 	setSecret(id: string, value: string): void;
@@ -23,6 +24,7 @@ export interface SettingsHost extends ApprovalPolicyHost {
 	openWalkthrough(): void;
 	openDiagnostics(): void;
 	openPrompts(): void;
+	openCompanionInstaller(mode: "first-install" | "updates" | "settings"): void;
 }
 
 export class AgenticResearchSettingTab extends PluginSettingTab {
@@ -102,7 +104,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 							const secretId = "oar-gemini-api-key";
 							setting
 								.setName("Gemini API key")
-								.setDesc("Add the key for this provider. It is stored securely and never saved in plugin data.")
+								.setDesc("Paste a key to store it securely. Leave empty to keep an existing key.")
 								.addText((text) => {
 									text.inputEl.type = "password";
 									text.setPlaceholder(host.getSecret(secretId) ? "Key stored securely" : "Paste API key");
@@ -129,7 +131,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 							const secretId = "oar-agnes-api-key";
 							setting
 								.setName("Agnes API key")
-								.setDesc("Add the key for this provider. It is stored securely and never saved in plugin data.")
+								.setDesc("Paste a key to store it securely. Leave empty to keep an existing key.")
 								.addText((text) => {
 									text.inputEl.type = "password";
 									text.setPlaceholder(host.getSecret(secretId) ? "Key stored securely" : "Paste API key");
@@ -201,9 +203,10 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 					},
 				],
 			},
-			{
-				type: "group",
-				heading: "Research controls",
+							{
+					type: "group",
+					heading: "Research controls",
+
 				items: [
 					{
 						name: "System prompts",
@@ -211,12 +214,36 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 						render: (setting) => {
 							setting
 								.setName("System prompts")
-								.setDesc("View the protected prompt and edit your additional instructions.")
+								.setDesc("View the protected built-in prompt and edit your additive custom system prompt.")
 								.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => host.openPrompts()));
 						},
 					},
-					actionSetting(
-						"First-time walkthrough",
+																		{
+								name: "Niplex ecosystem",
+								desc: "Connect optional Niplex extensions and choose exactly which bounded data classes the Research AI may use.",
+								render: (setting) => {
+									setting.setName("Niplex ecosystem").setDesc("Connect optional niplex extensions and choose exactly which bounded data classes the research AI may use.").addButton((button) => button.setButtonText("Manage permissions").onClick(() => { new EcosystemPermissionModal(this.app, host).open(); }));
+								},
+							},
+							{
+								name: "Companion reminders",
+								desc: "While Obsidian is running, surface important missing companions at most once every two hours.",
+								render: (setting) => {
+									setting.setName("Companion reminders").setDesc("While Obsidian is running, surface important missing companions at most once every two hours.").addToggle((toggle) => toggle.setValue(host.settings.companionRemindersEnabled).onChange((value) => { host.settings.companionRemindersEnabled = value; void host.saveSettings(); }));
+								},
+							},
+							{
+								name: "Check updates on restart",
+								desc: "Check allowlisted companion release metadata when Obsidian starts and ask before installing updates.",
+								render: (setting) => {
+									setting.setName("Check updates on restart").setDesc("Check allowlisted companion release metadata when Obsidian starts and ask before installing updates.").addToggle((toggle) => toggle.setValue(host.settings.companionUpdateChecksEnabled).onChange((value) => { host.settings.companionUpdateChecksEnabled = value; void host.saveSettings(); }));
+								},
+							},
+							actionSetting("Companion installs and updates", "Review important and optional companion plugins, release notes, and installation actions.", "Manage companions", () => host.openCompanionInstaller("settings")),
+
+						actionSetting(
+							"First-time walkthrough",
+
 						"Review privacy, bounded reading, MOC-first navigation, fallback, and write approvals.",
 						"Show walkthrough",
 						() => host.openWalkthrough(),
@@ -308,7 +335,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		new Setting(containerEl).setName("Configuration").setHeading();
 		containerEl.createEl("p", {
-			text: "Choose a provider. Keys stay secure; vault context stays bounded.",
+			text: "Choose a provider and keep agent context bounded. API keys are stored with Obsidian secretstorage and are never written to plugin data.",
 			cls: "oar-muted",
 		});
 
@@ -330,7 +357,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 		const secretId = provider === "gemini" ? "oar-gemini-api-key" : "oar-agnes-api-key";
 		new Setting(containerEl)
 			.setName(`${provider === "gemini" ? "Gemini" : "Agnes"} API key`)
-			.setDesc("Add the key for this provider. It is stored securely and never saved in plugin data.")
+			.setDesc("Paste a key to store it securely. Leave empty to keep an existing key.")
 			.addText((text) => {
 				text.inputEl.type = "password";
 				text.setPlaceholder(this.host.getSecret(secretId) ? "Key stored securely" : "Paste API key");
@@ -351,7 +378,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Automatic rate-limit fallback")
-				.setDesc("When a model is limited, pause it and try another model from the same provider.")
+				.setDesc("If the selected model returns a rate-limit or quota error, skip that model for one minute and try another model from this provider's catalogue. Obsolete models are skipped longer to prevent repeated failures. Providers are never switched silently.")
 				.addToggle((toggle) => toggle.setValue(this.host.settings.autoFallbackOnRateLimit).onChange(async (value) => {
 					this.host.settings.autoFallbackOnRateLimit = value;
 					await this.host.saveSettings();
@@ -361,7 +388,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 			const fallbackModels = this.host.settings[fallbackField];
 			new Setting(containerEl)
 				.setName(`${provider === "gemini" ? "Gemini" : "Agnes"} fallback order`)
-				.setDesc("Optional comma-separated models to try first.")
+				.setDesc("Optional comma-separated model ids to try first. The live catalogue is checked before a configured ID is used when available.")
 				.addTextArea((text) => {
 					text.setValue(fallbackModels.join(", "));
 					text.inputEl.rows = 2;
@@ -373,7 +400,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Live model catalogue")
-				.setDesc("Refresh available models for the picker and fallback.")
+				.setDesc("Refresh the provider catalogue used for model selection and rate-limit fallback.")
 				.addButton((button) => button.setButtonText("Refresh").onClick(async () => {
 					try {
 						const models = await this.host.getModelCatalogue(provider, true);
@@ -385,7 +412,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Gemini model")
-			.setDesc("Model used when Gemini is selected.")
+			.setDesc("Model name used when Gemini is selected.")
 			.addText((text) =>
 				text.setValue(this.host.settings.geminiModel).onChange(async (value) => {
 					this.host.settings.geminiModel = value.trim() || "gemini-3.6-flash";
@@ -395,7 +422,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Agnes model")
-			.setDesc("Model used when agnes is selected.")
+			.setDesc("Model name used when agnes is selected.")
 			.addText((text) =>
 				text.setValue(this.host.settings.agnesModel).onChange(async (value) => {
 					this.host.settings.agnesModel = value.trim() || "agnes-2.0-flash";
@@ -403,19 +430,40 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 			}),
 			);
 
+							new Setting(containerEl)
+										.setName("Niplex ecosystem")
+										.setDesc("Manage optional niplex extensions and explicit bounded data permissions.")
+										.addButton((button) => button.setButtonText("Manage permissions").onClick(() => new EcosystemPermissionModal(this.app, this.host).open()));
+
+				new Setting(containerEl)
+					.setName("Companion reminders")
+					.setDesc("While Obsidian is running, surface important missing companions at most once every two hours.")
+					.addToggle((toggle) => toggle.setValue(this.host.settings.companionRemindersEnabled).onChange(async (value) => { this.host.settings.companionRemindersEnabled = value; await this.host.saveSettings(); }));
+
+				new Setting(containerEl)
+					.setName("Check updates on restart")
+					.setDesc("Check allowlisted companion release metadata when Obsidian starts and ask before installing updates.")
+					.addToggle((toggle) => toggle.setValue(this.host.settings.companionUpdateChecksEnabled).onChange(async (value) => { this.host.settings.companionUpdateChecksEnabled = value; await this.host.saveSettings(); }));
+
+				new Setting(containerEl)
+					.setName("Companion installs and updates")
+					.setDesc("Review important and optional companion plugins, release notes, and installation actions.")
+					.addButton((button) => button.setButtonText("Manage companions").onClick(() => this.host.openCompanionInstaller("settings")));
+
 			new Setting(containerEl)
-				.setName("System prompts")
-				.setDesc("View the protected prompt and edit your additional instructions.")
+					.setName("System prompts")
+
+				.setDesc("View the protected built-in prompt and edit your additive custom system prompt.")
 				.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => this.host.openPrompts()));
 
 			new Setting(containerEl)
 				.setName("Edit approval policy")
-				.setDesc(this.host.settings.writeApprovalPolicy.mode === "timed" ? `Temporary approval ends at ${new Date(this.host.settings.writeApprovalPolicy.expiresAt).toLocaleTimeString()}.` : "Ask before every edit. You can set a short approval window.")
+				.setDesc(this.host.settings.writeApprovalPolicy.mode === "timed" ? `Scoped approvals expire ${new Date(this.host.settings.writeApprovalPolicy.expiresAt).toLocaleTimeString()}; all other edits still ask.` : "Always ask before edits. Configure a short, scoped window only when you explicitly want it.")
 				.addButton((button) => button.setButtonText("Configure approvals").onClick(() => new ApprovalPolicyModal(this.app, this.host).open()));
 
 			new Setting(containerEl)
 				.setName("Moc folder")
-				.setDesc("Folder where generated maps are saved.")
+				.setDesc("Generated category maps are saved under this visible vault folder. The default is NIPLEX-Obsidian/mocs.")
 				.addText((text) => text.setValue(this.host.settings.mocFolder).onChange(async (value) => {
 					const safe = sanitizeVaultPath(value);
 						if (safe) {
@@ -427,17 +475,17 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("First-time walkthrough")
-				.setDesc("Review privacy, bounded reading, maps, fallback, and approvals.")
+				.setDesc("Review privacy, bounded reading, moc-first navigation, fallback, and write approvals.")
 				.addButton((button) => button.setButtonText("Show walkthrough").onClick(() => this.host.openWalkthrough()));
 
 			new Setting(containerEl)
 				.setName("Share diagnostics")
-				.setDesc("Open local logs with secrets and vault content removed.")
+				.setDesc("Open redacted local logs for sharing when a run or model fallback needs troubleshooting.")
 				.addButton((button) => button.setButtonText("Open logs").onClick(() => this.host.openDiagnostics()));
 
 			new Setting(containerEl)
 				.setName("Moc foreground time budget (seconds)")
-				.setDesc("Pause a long map build after this time at a safe note boundary.")
+				.setDesc("Pause a long moc build after this many seconds at a safe note boundary. This is a mobile responsiveness guard, not a note-count limit.")
 				.addText((text) => text.setValue(String(this.host.settings.mocTimeBudgetSeconds)).onChange(async (value) => {
 					const parsed = Number.parseInt(value, 10);
 					if (Number.isFinite(parsed)) {
@@ -448,7 +496,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Maximum agent steps")
-			.setDesc("Maximum safe actions for one question.")
+			.setDesc("Hard cap on tool-loop iterations per prompt.")
 			.addText((text) =>
 				text.setValue(String(this.host.settings.maxIterations)).onChange(async (value) => {
 					const parsed = Number.parseInt(value, 10);
@@ -461,7 +509,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Maximum read lines")
-			.setDesc("Maximum lines returned from one note read.")
+			.setDesc("Maximum lines returned by one read_file_chunk call.")
 			.addText((text) =>
 				text.setValue(String(this.host.settings.maxReadLines)).onChange(async (value) => {
 					const parsed = Number.parseInt(value, 10);
