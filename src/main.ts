@@ -73,6 +73,9 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 	private readonly ecosystemExtensions = new Map<string, NiplexExtension>();
 	private companionCheckInFlight = false;
 	public ecosystemApi?: NiplexResearchHostApi;
+	/** Public aliases keep the v1 bridge discoverable to independently released companions. */
+	public api?: NiplexResearchHostApi;
+	public ecosystem?: NiplexResearchHostApi;
 
 	async onload(): Promise<void> {
 		const raw = await this.loadData() as Partial<AgentSettings> & Partial<PersistedData> | null;
@@ -101,6 +104,8 @@ export default class AgenticResearchPlugin extends Plugin implements SettingsHos
 		}
 
 		this.ecosystemApi = this.createEcosystemApi();
+		this.api = this.ecosystemApi;
+		this.ecosystem = this.ecosystemApi;
 			window.setTimeout(() => window.dispatchEvent(new CustomEvent("niplex-ecosystem-ready", { detail: { protocol: NIPLEX_ECOSYSTEM_PROTOCOL, protocolVersion: NIPLEX_ECOSYSTEM_PROTOCOL_VERSION, hostPluginId: this.manifest.id, hostVersion: this.manifest.version } })), 0);
 			this.registerView(AGENT_VIEW_TYPE, (leaf) => new AgentView(leaf, this));
 		// Re-enabling a plugin after Obsidian restored a placeholder does not fire layout-ready again.
