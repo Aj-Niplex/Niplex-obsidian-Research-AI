@@ -161,15 +161,16 @@ export class VaultContext {
 		return { ok: true, content: `Created ${cleanPath}` };
 	}
 
-	async createNote(path: string, content: string): Promise<ToolResult> {
-		const cleanPath = sanitizeVaultPath(path);
-		if (!cleanPath || !cleanPath.toLowerCase().endsWith(".md")) {
-			return { ok: false, isError: true, content: "The note path must end with .md." };
-		}
-		if (this.isProtected(cleanPath)) return { ok: false, isError: true, content: "That folder is protected." };
-		if (this.vault.getAbstractFileByPath(cleanPath)) return { ok: false, isError: true, content: `Path already exists: ${cleanPath}` };
-		await this.vault.create(cleanPath, content);
-		return { ok: true, content: `Created ${cleanPath}` };
+		async createNote(path: string, content: string): Promise<ToolResult> {
+			const cleanPath = sanitizeVaultPath(path);
+			if (!cleanPath || !cleanPath.toLowerCase().endsWith(".md")) {
+				return { ok: false, isError: true, content: "The note path must end with .md." };
+			}
+			if (this.isProtected(cleanPath)) return { ok: false, isError: true, content: "That folder is protected." };
+			if (this.vault.getAbstractFileByPath(cleanPath)) return { ok: false, isError: true, content: `Path already exists: ${cleanPath}` };
+			await this.ensureParentFolders(cleanPath);
+			await this.vault.create(cleanPath, content);
+			return { ok: true, content: `Created ${cleanPath}` };
 	}
 
 	async appendNote(path: string, content: string): Promise<ToolResult> {
@@ -384,7 +385,7 @@ export class VaultContext {
 				},
 				{
 					name: "create_note",
-				description: "Create a new Markdown note. This is a write action and requires user approval.",
+					description: "Create a new Markdown note and its missing parent folders. This is a write action and requires user approval. Never place Markdown notes, MOCs, or knowledge records under Assets/; reserve Assets/ for binary attachments such as images, audio, and video.",
 				readOnly: false,
 				parameters: {
 					type: "object",
@@ -396,8 +397,8 @@ export class VaultContext {
 				},
 			},
 			{
-				name: "append_note",
-				description: "Append text to an existing Markdown note. This is a write action and requires user approval.",
+					name: "append_note",
+					description: "Append text to an existing Markdown note. This is a write action and requires user approval. Keep binary attachments in Assets/ and link them from Markdown notes; do not use Assets/ as a knowledge-note destination.",
 				readOnly: false,
 				parameters: {
 					type: "object",

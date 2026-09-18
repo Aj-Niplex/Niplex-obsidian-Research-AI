@@ -31,6 +31,35 @@ export type ApprovalHandler = (tool: ToolDefinition, call: ToolCall) => Promise<
 
 const MAX_TOOL_CALLS_PER_STEP = 1;
 const MAX_CONTEXT_MESSAGES = 12;
+
+export function readWindowOverlaps(
+	path: string,
+	startLine: number,
+	maxLines: number,
+	previous: ReadonlyMap<string, Array<{ startLine: number; endLine: number }>>,
+): boolean {
+	const cleanPath = path.trim().toLowerCase();
+	if (!cleanPath) return false;
+	const start = Math.max(1, Math.floor(startLine));
+	const end = start + Math.max(1, Math.floor(maxLines)) - 1;
+	return (previous.get(cleanPath) ?? []).some((window) => start <= window.endLine && end >= window.startLine);
+}
+
+function rememberReadWindow(
+	path: string,
+	startLine: number,
+	maxLines: number,
+	previous: Map<string, Array<{ startLine: number; endLine: number }>>,
+): void {
+	const cleanPath = path.trim().toLowerCase();
+	if (!cleanPath) return;
+	const start = Math.max(1, Math.floor(startLine));
+	const end = start + Math.max(1, Math.floor(maxLines)) - 1;
+	const windows = previous.get(cleanPath) ?? [];
+	windows.push({ startLine: start, endLine: end });
+	previous.set(cleanPath, windows.slice(-12));
+}
+
 function capText(text: string, maxChars: number): string {
 	const limit = Math.max(1, maxChars);
 	if (text.length <= limit) return text;
@@ -102,6 +131,8 @@ export class AgentRuntime {
 			let lastText = "";
 		let generatedSubject: string | undefined;
 		const executedToolKeys = new Set<string>();
+		const readWindows = new Map<string, Array<{ startLine: number; endLine: number }>>();
+		let repeatedReadAttempts = 0;
 		let activeModel = configuredModel(this.settings);
 			for (let iteration = 1; iteration <= this.settings.maxIterations; iteration += 1) {
 				if (signal?.aborted) {
@@ -196,14 +227,39 @@ export class AgentRuntime {
 				emit({ type: "tool", phase: "tool", step: iteration, message: unknown.content, tool: call, result: unknown });
 				continue;
 			}
-				const callKey = `${call.name}:${JSON.stringify(call.arguments ?? {})}`;
-				if (executedToolKeys.has(callKey)) {
+					const callKey = `${call.name}:${JSON.stringify(call.arguments ?? {})}`;
+					if (executedToolKeys.has(callKey)) {
 					const duplicate: ToolResult = { ok: false, isError: true, content: "This exact bounded action was already completed in this request. Use the existing result and continue without repeating it." };
 					messages.push({ role: "tool", content: duplicate.content, toolCallId: call.id, toolName: call.name });
-					emit({ type: "tool", phase: "tool", step: iteration, message: duplicate.content, tool: call, result: duplicate });
-					continue;
-				}
-				executedToolKeys.add(callKey);
+						emit({ type: "tool", phase: "tool", step: iteration, message: duplicate.content, tool: call, result: duplicate });
+						if (call.name === "read_file_chunk") repeatedReadAttempts += 1;
+						if (repeatedReadAttempts >= 3) {
+							const stopped = "Stopped repeated reads of the same bounded file. Use the evidence already collected or ask for a different file/window.";
+							emit({ type: "status", phase: "complete", step: iteration, message: stopped });
+							return { text: stopped, messages, model: activeModel, stopped: true };
+						}
+						continue;
+					}
+					if (call.name === "read_file_chunk") {
+						const path = typeof call.arguments.path === "string" ? call.arguments.path : "";
+						const startLine = typeof call.arguments.startLine === "number" ? call.arguments.startLine : 1;
+						const maxLines = typeof call.arguments.maxLines === "number" ? call.arguments.maxLines : this.settings.maxReadLines;
+						if (readWindowOverlaps(path, startLine, maxLines, readWindows)) {
+							const overlap: ToolResult = { ok: false, isError: true, content: "This file window overlaps a range already read in this request. Use the existing bounded evidence, or request a non-overlapping range starting after the previous window." };
+							messages.push({ role: "tool", content: overlap.content, toolCallId: call.id, toolName: call.name });
+							emit({ type: "tool", phase: "tool", step: iteration, message: overlap.content, tool: call, result: overlap });
+							repeatedReadAttempts += 1;
+							if (repeatedReadAttempts >= 3) {
+								const stopped = "Stopped repeated reads of the same bounded file. Use the evidence already collected or ask for a different file/window.";
+								emit({ type: "status", phase: "complete", step: iteration, message: stopped });
+								return { text: stopped, messages, model: activeModel, stopped: true };
+							}
+							continue;
+						}
+						rememberReadWindow(path, startLine, maxLines, readWindows);
+					}
+					executedToolKeys.add(callKey);
+					repeatedReadAttempts = 0;
 				if (!definition.readOnly && this.settings.researchMode !== "edit") {
 					const denied: ToolResult = { ok: false, isError: true, content: `Write blocked in ${this.settings.researchMode} mode. Switch the mode selector to Create & edit before requesting a durable change.` };
 					messages.push({ role: "tool", content: denied.content, toolCallId: call.id, toolName: call.name });
