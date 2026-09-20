@@ -97,7 +97,7 @@ export class SkillSelectorModal extends Modal {
 		this.listEl.empty();
 		const skills = [...BUILT_IN_SKILLS, ...installed.filter((skill) => !BUILT_IN_SKILLS.some((builtIn) => builtIn.code === skill.code))];
 		if (!skills.length) {
-			this.listEl.createDiv({ text: "No Helper skills are installed yet. Install one in Niplex Skills Helper, then type /skill again to refresh this list.", cls: "oar-muted" });
+			this.listEl.createDiv({ text: "No installed skills are available yet. Add validated skill files under NIPLEX-OBSIDIAN/Skills, then type /skill again to refresh this list.", cls: "oar-muted" });
 			return;
 		}
 		for (const skill of skills) {

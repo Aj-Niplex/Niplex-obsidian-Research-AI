@@ -182,7 +182,7 @@ export class LocalVaultStore {
 					const description = typeof source.description === "string" ? source.description.trim().slice(0, 360) : "Installed instruction skill.";
 					skills.push({ code, name, version, description, prompt: source.prompt.trim().slice(0, CONTEXT_BUDGETS.maxSkillGuidanceChars), settingsPatch: patch });
 			} catch {
-				// Ignore malformed local packages; the helper validates packages before installation.
+				// Ignore malformed local packages; the plugin validates their bounded manifest before use.
 			}
 		}
 		return skills;

@@ -1,7 +1,6 @@
 import { DEFAULT_SETTINGS, type AgentSettings, type ModelCooldown, type MocCheckpoint, type MocCheckpointCategory, type OutputSize, type QuickActionId, type ResearchMode, type WindowSize } from "./types";
 import { normalizeUserSystemPrompt } from "./system-prompt";
 import { normalizeApprovalPolicy } from "./approval-policy";
-import { emptyEcosystemGrant, type EcosystemPermissionGrant } from "./ecosystem";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
@@ -29,24 +28,6 @@ function normalizeModelList(value: unknown): string[] {
 	return Array.isArray(value) ? [...new Set(value.filter((model): model is string => typeof model === "string").map((model) => model.trim()).filter(Boolean))] : [];
 }
 
-function normalizeEcosystemPermissions(value: unknown): Record<string, EcosystemPermissionGrant> {
-	if (!isRecord(value)) return {};
-	const result: Record<string, EcosystemPermissionGrant> = {};
-	for (const [extensionId, raw] of Object.entries(value)) {
-		if (!isRecord(raw) || !/^[a-z0-9][a-z0-9-]{0,79}$/.test(extensionId)) continue;
-		const defaults = emptyEcosystemGrant();
-		result[extensionId] = {
-			...defaults,
-			boundedContext: raw.boundedContext === true,
-			noteMetadata: raw.noteMetadata === true,
-			mapProvenance: raw.mapProvenance === true,
-			coarseActivity: raw.coarseActivity === true,
-			skillGuidance: raw.skillGuidance === true,
-			readOnlyActions: raw.readOnlyActions === true,
-		};
-	}
-	return result;
-}
 
 function normalizeCooldowns(value: unknown): Record<string, ModelCooldown> {
 	if (!isRecord(value)) return {};
@@ -110,11 +91,5 @@ export function normalizeAgentSettings(value: unknown): AgentSettings {
 		windowSize: normalizeWindowSize(source.windowSize),
 		onboardingVersion: numberValue("onboardingVersion", DEFAULT_SETTINGS.onboardingVersion, 0, 100),
 			onboardingCompleted: source.onboardingCompleted === true || (typeof source.onboardingVersion === "number" && source.onboardingVersion > 0),
-			ecosystemPermissions: normalizeEcosystemPermissions(source.ecosystemPermissions),
-			companionRemindersEnabled: source.companionSetupConfirmed === true && source.companionRemindersEnabled !== false,
-			companionUpdateChecksEnabled: source.companionSetupConfirmed === true && source.companionUpdateChecksEnabled !== false,
-			lastCompanionReminderAt: numberValue("lastCompanionReminderAt", 0, 0, Date.now()),
-			lastCompanionUpdateCheckAt: numberValue("lastCompanionUpdateCheckAt", 0, 0, Date.now()),
-			companionSetupConfirmed: source.companionSetupConfirmed === true,
 	};
 }

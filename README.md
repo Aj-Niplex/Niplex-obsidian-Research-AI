@@ -24,25 +24,17 @@ The plugin searches note names and metadata first, opens bounded line windows wh
 | Research modes | **Plan** and **Chat** are read-only. **Create & edit** is required before a write tool can be considered, and writes still require approval unless a narrow timed policy is explicitly configured. |
 | Quick actions | Users choose up to three icon actions for the left side of the quick bar. The model selector and research-mode selector remain directly beside them. |
 | AI-discovered MOCs | Finds categories from bounded note context, allows multi-category membership, and checkpoints long runs so they can resume safely. |
-| Skills | The optional helper downloads and installs reviewed instruction-only packages after code lookup, digest verification, preview, and explicit approval. Installed packages appear in the `/skill` selector without requiring a main-plugin restart. |
+| Skills | Uses validated instruction-only packages stored locally under `NIPLEX-OBSIDIAN/Skills/`; no helper plugin is required. |
 | Inline controls | Type `@path/to/note.md` or `@Folder/` to add bounded vault context directly. Type `/skill` to choose built-in or installed skills and set answer size from Lowest to Maximum. |
 | Public video input | Detects one public YouTube URL in a focused question and sends it to Gemini as a bounded `fileData.fileUri` video part. Agnes receives the URL as text because its current adapter does not claim native video input. |
 
-## Niplex ecosystem host
+## Standalone architecture
 
-The core is the host for a broader Niplex ecosystem. Research Brain, Writing Insights, Skills Helper, and future modules remain separate repositories and separate Community plugins, but a compatible host can discover them through the versioned `niplex-ecosystem` protocol. Each extension declares its capabilities and data classes, then registers through a runtime API only when the host is installed and enabled.
+Niplex Research AI is the only plugin in this setup. It has no required or optional companion plugins, does not install third-party plugins, and does not run companion update checks. Skills are ordinary validated files under `NIPLEX-OBSIDIAN/Skills/` and are used locally by the main plugin.
 
-Every extension begins with no data permission. The user grants bounded context, note metadata, map provenance, coarse activity, skill guidance, and read-only actions separately. The host applies a per-request item and character budget, labels contributions with provenance, shows an optional context section in the run timeline, and continues normally if an extension is missing, disabled, incompatible, slow, or malformed. Extensions never receive provider keys and cannot use this bridge to write notes or bypass the existing approval boundary.
+## MCP-compatible tool calling
 
-The approved `0.1.19` release remains an intact rollback point. The ecosystem host and companion-update controls were introduced in `0.3.0`; the current follow-up is `0.3.2`. Users on `0.1.19` continue to have the existing core behavior, while extensions remain usable locally until a compatible host release is installed.
-
-## Companion installation and updates
-
-On first setup, the host checks the allowlisted important companions—Skills Helper and Research Brain—and shows a transparent review panel. The panel explains what each plugin adds, which version is available, what is currently installed, and what the release notes say about user-visible behavior. Nothing is downloaded or enabled until the user selects **Confirm and install important companions**.
-
-After Obsidian starts again, the host can check release metadata for installed companions. If a newer release is available, it shows the release notes and asks before downloading, replacing, or enabling files. The installer downloads only `main.js`, `manifest.json`, and `styles.css`, verifies the downloaded manifest identity and version, disables an already-running companion during replacement, and restores the previous files when installation fails where possible. Users can defer any update and manage optional companions such as Writing Insights and Iconize from Settings.
-
-The reminder is a foreground in-app interval while Obsidian is running; it is not a hidden background service and does not run while the mobile app is suspended or closed. Users can turn off important-companion reminders or restart-time checks in Settings. The core never silently installs a plugin.
+The provider-neutral runtime uses normalized tool names, JSON arguments, and bounded result envelopes. `src/core/mcp-compat.ts` maps MCP `tools/list` and `tools/call` shapes to the same contract used by Gemini, Agnes, and the local vault tools. `src/core/mcp-client.ts` provides a streamable HTTP JSON-RPC client using Obsidian `requestUrl`, session headers, initialization, tool discovery, and tool execution.
 
 ## Mobile interaction model
 
@@ -66,18 +58,9 @@ The following captures show the mobile interaction model, helper marketplace, in
 
 ## Latest release notes
 
-### 0.3.2 — Codex privacy and companion lifecycle fixes
+### 0.1.23 — Standalone core and MCP compatibility
 
-This patch keeps companion release checks disabled until first-install setup is explicitly confirmed, shows unavailable release checks instead of reporting everything as current, honors custom Obsidian config directories, orders stable releases above prereleases, and keeps the protocol documentation aligned with the runtime contract. It also preserves companion registrations after a host reload by using the registry’s current state.
-
-### 0.3.1 — Companion settings action fix
-
-When a companion is already installed but disabled, the Settings manager now opens Obsidian’s Community plugins screen instead of presenting an inactive installation action. This keeps enabling visible and user-controlled.
-
-### 0.3.0 — Ecosystem host and companion update controls
-
-This feature release adds explicit extension discovery, deny-by-default permissions, bounded context requests, read-only extension actions, provenance labels, timeouts, and failure isolation. It also adds a transparent first-run companion installer, allowlisted release checks on restart, explicit confirmation before downloads or enabling, rollback-aware replacement, and expandable release notes explaining what changed and how each update affects the user. It never silently downloads, enables, or executes another plugin.
-
+This release removes companion-plugin installation, update checks, ecosystem extension registration, and companion-dependent onboarding. It keeps Research AI independently usable and adds a provider-neutral MCP-compatible tool schema, JSON-RPC client, and bounded result normalization.
 
 ### 0.1.19 — Community review warning cleanup
 
@@ -101,12 +84,8 @@ flowchart LR
     TOOLS --> VAULT(("User vault"))
     RUNTIME --> APPROVAL("Write approval boundary")
     APPROVAL --> VAULT
-    HOST("Versioned ecosystem host") --> BRAIN("Research Brain")
-    HOST --> INSIGHTS("Writing Insights")
-    HOST --> SKILLS("Skills Helper")
-    BRAIN -->|bounded map metadata| RUNTIME
-    INSIGHTS -->|coarse activity only| RUNTIME
-    SKILLS -->|selected additive guidance| RUNTIME
+    RUNTIME --> MCP("MCP-compatible tools")
+    MCP --> SERVER("Remote MCP server")
 ```
 
 ### Context boundary
@@ -151,7 +130,7 @@ The build creates `main.js`. Copy it with `manifest.json` and `styles.css` into 
 
 ## First-run setup
 
-The walkthrough checks for **Niplex Skills Helper** and **Iconize**. Both are optional to the main research view. If one is missing or outdated, the walkthrough provides an install or update link; it does not silently download or enable another plugin.
+The walkthrough is standalone: it checks provider readiness, explains bounded context and approvals, and asks where MOCs should live. It never checks for, downloads, enables, or updates another plugin.
 
 The walkthrough also asks where MOCs should live. Choose either `MOCs/` at the vault root or `NIPLEX-OBSIDIAN/MOCs/`. That choice becomes the default for later MOC creation and adjustment. After the choice is saved, the MOC builder opens and starts automatically. You can minimize its window, but keep it open until the run finishes.
 
@@ -191,7 +170,7 @@ NIPLEX-OBSIDIAN/
 ├── MOCs/        # Generated maps when this location is selected
 ├── Prompts/     # Additive custom prompt mirror
 ├── Runtime/     # Protected checkpoints and diagnostics
-└── Skills/      # Validated helper-installed skill packages
+└── Skills/      # Validated locally installed skill packages
 ```
 
 API keys are not stored in this folder. The agent cannot read the protected chat, prompt, memory, runtime, or installed-skill folders through its vault tools by default. Generated MOCs remain navigable so they can serve as user-controlled research indexes.
@@ -210,15 +189,14 @@ The MOC builder discovers categories from bounded note metadata and excerpts. A 
 
 A MOC is a navigation aid, not a whole-vault export. The regular agent still chooses relevant files and reads bounded windows rather than sending every note body in one request.
 
-## Skills and helper plugin
+## Skills
 
-The optional Niplex Skills Helper (https://github.com/Aj-Niplex/niplex-obsidian-helper) provides the marketplace surface. Its default public catalogue is:
+Research AI uses validated instruction-only skill files stored locally under `NIPLEX-OBSIDIAN/Skills/`. No helper plugin or companion installation is required. A skill package contains only `skill.json` and `SKILL.md`; the main plugin treats its instructions as untrusted additive guidance and applies only allowlisted numeric settings patches.
 
 ```text
-https://raw.githubusercontent.com/Aj-Niplex/Niplex-Obsidian-skills/main/catalogue.json
 ```
 
-Enter a five-character code such as `RSH01`, inspect the returned package, and explicitly approve installation. The helper verifies a SHA-256 digest and writes only `skill.json` and `SKILL.md` into `NIPLEX-OBSIDIAN/Skills/`. After installation, reopen `/skill` in Research AI to refresh the list immediately; a full restart is still safe but is not required for discovery. The main plugin loads the package as untrusted additive guidance and applies only allowlisted numeric settings patches. The public catalogue includes nine reviewed research packages (`RSH01`–`RSH09`). The upstream Hermes research directory is vendored under the catalogue repository for inspection with its MIT notice preserved, but it is not a live runtime dependency. Bundled upstream scripts are not executed by Niplex.
+After placing a validated package in that folder, reopen `/skill` in Research AI to refresh the list immediately. The plugin never executes bundled scripts, accesses provider keys, or treats a skill as a replacement for the protected policy.
 
 ## Privacy and security
 
@@ -228,7 +206,7 @@ Diagnostics are intentionally redacted. They may include provider/model events, 
 
 ## Current limitations
 
-This is still an active project, so real Android and iOS testing matters. The areas most worth checking are SecretStorage, modal sizing, long MOC runs, local chat migration, provider fallback, public YouTube handling with Gemini, and helper updates. The plugin does not run background jobs or automatic vault hooks.
+This is still an active project, so real Android and iOS testing matters. The areas most worth checking are SecretStorage, modal sizing, long MOC runs, local chat migration, provider fallback, public YouTube handling with Gemini, and MCP server compatibility. The plugin does not run background jobs or automatic vault hooks.
 
 ## Repository layout
 

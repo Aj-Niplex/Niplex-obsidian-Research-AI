@@ -1,6 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
 import type { AgentSettings, ProviderId, ProviderModel, QuickActionId, SavedChat, WindowSize } from "../core/types";
-import type { NiplexActionSummary } from "../core/ecosystem";
 import { searchableChatText } from "../core/chat-history";
 
 export interface ActionSheetHost {
@@ -25,8 +24,6 @@ export interface ActionSheetHost {
 	onOpenPrompts(): void;
 	onOpenMemory(): Promise<void>;
 	onWindowSizeChange(size: WindowSize): Promise<void>;
-	getEcosystemActions(): NiplexActionSummary[];
-	onEcosystemAction(action: NiplexActionSummary): Promise<void>;
 }
 
 const QUICK_ACTIONS: Array<{ id: QuickActionId; label: string; icon: string }> = [
@@ -65,11 +62,6 @@ export class ActionSheetModal extends Modal {
 		this.addActionCard(primary, "Add context", "Choose specific files or a folder; the next run remains bounded.", () => this.host.onAttachFiles());
 		this.addActionCard(primary, "Open MOC builder", "Create or adjust the map used to navigate your vault.", () => this.host.onOpenMoc());
 				this.addActionCard(primary, "Continue research", "Resume from the last bounded run when it paused.", () => this.host.onContinue());
-
-			const ecosystem = this.addDisclosure(contentEl, "Niplex ecosystem", "Run approved read-only actions from connected Niplex extensions.");
-			const ecosystemActions = this.host.getEcosystemActions();
-			if (!ecosystemActions.length) ecosystem.createEl("small", { text: "No ecosystem actions are enabled. Grant read-only action permission in the core settings." });
-			for (const action of ecosystemActions) this.addActionCard(ecosystem, action.label, `${action.extensionId} · ${action.description}`, () => void this.host.onEcosystemAction(action));
 
 			const quick = this.addDisclosure(contentEl, "Quick-action bar", "Choose up to three icons to keep beside the chat input.");
 		this.renderQuickActionChooser(quick);

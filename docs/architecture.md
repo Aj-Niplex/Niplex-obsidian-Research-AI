@@ -23,7 +23,7 @@ The plugin must set `isDesktopOnly` to `false`, avoid Node.js imports and filesy
 | `src/ui/agent-view.ts` | Mobile-responsive chat view and progress rendering | Implement |
 | `src/ui/approval-modal.ts` | Confirmation for writes and other side effects | Implement |
 | `src/settings.ts` | Provider/model/API-key settings | Implement |
-| `src/core/mcp-client.ts` | Future generic streamable-HTTP MCP adapter | Planned, documented only |
+| `src/core/mcp-compat.ts` and `src/core/mcp-client.ts` | MCP-compatible tool schema, bounded result normalization, and streamable-HTTP JSON-RPC client | Implemented |
 
 ## Bounded context contract
 
@@ -58,4 +58,4 @@ The provider interface is provider-neutral. Gemini maps the normalized message a
 
 ## Deliberate non-goals for the first commit
 
-The MVP does not implement a full remote MCP client, background scheduling, semantic embeddings, binary/PDF extraction, or automatic lifecycle hooks. Those can be added after the bounded text workflow is stable and tested on both Android and iOS.
+The plugin does not implement background scheduling, semantic embeddings, binary/PDF extraction, or automatic lifecycle hooks. MCP connections remain explicit and provider-neutral; no companion plugin or hidden background service is required.

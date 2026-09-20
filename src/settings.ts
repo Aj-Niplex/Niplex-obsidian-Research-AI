@@ -2,7 +2,6 @@ import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { AgentSettings, ProviderId } from "./core/types";
 import { sanitizeVaultPath } from "./core/path-utils";
 import { ApprovalPolicyModal, type ApprovalPolicyHost } from "./ui/approval-policy-modal";
-import { EcosystemPermissionModal, type EcosystemPermissionHost } from "./ui/ecosystem-modal";
 
 type SettingDefinitionItem = {
 	type?: "group";
@@ -14,7 +13,7 @@ type SettingDefinitionItem = {
 	items?: SettingDefinitionItem[];
 };
 
-export interface SettingsHost extends ApprovalPolicyHost, EcosystemPermissionHost {
+export interface SettingsHost extends ApprovalPolicyHost {
 	settings: AgentSettings;
 	saveSettings(): Promise<void>;
 	setSecret(id: string, value: string): void;
@@ -24,7 +23,6 @@ export interface SettingsHost extends ApprovalPolicyHost, EcosystemPermissionHos
 	openWalkthrough(): void;
 	openDiagnostics(): void;
 	openPrompts(): void;
-	openCompanionInstaller(mode: "first-install" | "updates" | "settings"): void;
 }
 
 export class AgenticResearchSettingTab extends PluginSettingTab {
@@ -218,36 +216,6 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 								.addButton((button) => button.setButtonText("Open prompt settings").onClick(() => host.openPrompts()));
 						},
 					},
-																		{
-								name: "Niplex ecosystem",
-								desc: "Connect optional Niplex extensions and choose exactly which bounded data classes the Research AI may use.",
-								render: (setting) => {
-									setting.setName("Niplex ecosystem").setDesc("Connect optional niplex extensions and choose exactly which bounded data classes the research AI may use.").addButton((button) => button.setButtonText("Manage permissions").onClick(() => { new EcosystemPermissionModal(this.app, host).open(); }));
-								},
-							},
-							{
-								name: "Companion reminders",
-								desc: "While Obsidian is running, surface important missing companions at most once every two hours.",
-								render: (setting) => {
-									setting.setName("Companion reminders").setDesc("While Obsidian is running, surface important missing companions at most once every two hours.").addToggle((toggle) => toggle.setValue(host.settings.companionRemindersEnabled).onChange((value) => { host.settings.companionRemindersEnabled = value; void host.saveSettings(); }));
-								},
-							},
-							{
-								name: "Check updates on restart",
-								desc: "Check allowlisted companion release metadata when Obsidian starts and ask before installing updates.",
-								render: (setting) => {
-									setting.setName("Check updates on restart").setDesc("Check allowlisted companion release metadata when Obsidian starts and ask before installing updates.").addToggle((toggle) => toggle.setValue(host.settings.companionUpdateChecksEnabled).onChange((value) => { host.settings.companionUpdateChecksEnabled = value; void host.saveSettings(); }));
-								},
-							},
-							actionSetting("Companion installs and updates", "Review important and optional companion plugins, release notes, and installation actions.", "Manage companions", () => host.openCompanionInstaller("settings")),
-
-						actionSetting(
-							"First-time walkthrough",
-
-						"Review privacy, bounded reading, MOC-first navigation, fallback, and write approvals.",
-						"Show walkthrough",
-						() => host.openWalkthrough(),
-					),
 					actionSetting(
 						"Share diagnostics",
 						"Open redacted local logs for sharing when a run or model fallback needs troubleshooting.",
@@ -430,27 +398,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 			}),
 			);
 
-							new Setting(containerEl)
-										.setName("Niplex ecosystem")
-										.setDesc("Manage optional niplex extensions and explicit bounded data permissions.")
-										.addButton((button) => button.setButtonText("Manage permissions").onClick(() => new EcosystemPermissionModal(this.app, this.host).open()));
-
 				new Setting(containerEl)
-					.setName("Companion reminders")
-					.setDesc("While Obsidian is running, surface important missing companions at most once every two hours.")
-					.addToggle((toggle) => toggle.setValue(this.host.settings.companionRemindersEnabled).onChange(async (value) => { this.host.settings.companionRemindersEnabled = value; await this.host.saveSettings(); }));
-
-				new Setting(containerEl)
-					.setName("Check updates on restart")
-					.setDesc("Check allowlisted companion release metadata when Obsidian starts and ask before installing updates.")
-					.addToggle((toggle) => toggle.setValue(this.host.settings.companionUpdateChecksEnabled).onChange(async (value) => { this.host.settings.companionUpdateChecksEnabled = value; await this.host.saveSettings(); }));
-
-				new Setting(containerEl)
-					.setName("Companion installs and updates")
-					.setDesc("Review important and optional companion plugins, release notes, and installation actions.")
-					.addButton((button) => button.setButtonText("Manage companions").onClick(() => this.host.openCompanionInstaller("settings")));
-
-			new Setting(containerEl)
 					.setName("System prompts")
 
 				.setDesc("View the protected prompt and edit your additional instructions.")
@@ -475,17 +423,17 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("First-time walkthrough")
-				.setDesc("Review privacy, bounded reading, maps, fallback, and approvals.")
+				.setDesc("Review privacy, bounded reading, moc-first navigation, fallback, and write approvals.")
 				.addButton((button) => button.setButtonText("Show walkthrough").onClick(() => this.host.openWalkthrough()));
 
 			new Setting(containerEl)
 				.setName("Share diagnostics")
-				.setDesc("Open local logs with secrets and vault content removed.")
+				.setDesc("Open redacted local logs for sharing when a run or model fallback needs troubleshooting.")
 				.addButton((button) => button.setButtonText("Open logs").onClick(() => this.host.openDiagnostics()));
 
 			new Setting(containerEl)
 				.setName("Moc foreground time budget (seconds)")
-				.setDesc("Pause a long map build after this time at a safe note boundary.")
+				.setDesc("Pause a long moc build after this many seconds at a safe note boundary. This is a mobile responsiveness guard, not a note-count limit.")
 				.addText((text) => text.setValue(String(this.host.settings.mocTimeBudgetSeconds)).onChange(async (value) => {
 					const parsed = Number.parseInt(value, 10);
 					if (Number.isFinite(parsed)) {
@@ -496,7 +444,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 			new Setting(containerEl)
 				.setName("Maximum agent steps")
-			.setDesc("Maximum safe actions for one question.")
+			.setDesc("Hard cap on tool-loop iterations per prompt.")
 			.addText((text) =>
 				text.setValue(String(this.host.settings.maxIterations)).onChange(async (value) => {
 					const parsed = Number.parseInt(value, 10);
@@ -509,7 +457,7 @@ export class AgenticResearchSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Maximum read lines")
-			.setDesc("Maximum lines returned from one note read.")
+			.setDesc("Maximum lines returned by one read_file_chunk call.")
 			.addText((text) =>
 				text.setValue(String(this.host.settings.maxReadLines)).onChange(async (value) => {
 					const parsed = Number.parseInt(value, 10);

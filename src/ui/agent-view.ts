@@ -1,7 +1,6 @@
 import { ItemView, MarkdownRenderer, Notice, setIcon, WorkspaceLeaf } from "obsidian";
 import type { AgentEvent, AgentRunResult } from "../core/agent-runtime";
 import type { AgentSettings, ChatMessage, InstalledSkill, ProviderId, ProviderModel, QuickActionId, SavedChat } from "../core/types";
-import type { NiplexActionSummary } from "../core/ecosystem";
 import { CONTEXT_BUDGETS } from "../core/context-budget";
 import { compactChatMessages } from "../core/chat-history";
 import { deriveChatSubject } from "../core/chat-subject";
@@ -29,8 +28,6 @@ export interface AgentViewHost extends MocHost, FilePickerHost {
 	saveChat(chat: SavedChat): Promise<void>;
 	deleteChat(id: string): Promise<void>;
 	getInstalledSkills(): Promise<InstalledSkill[]>;
-	getEcosystemActions(): NiplexActionSummary[];
-	runEcosystemAction(action: NiplexActionSummary, query?: string): Promise<void>;
 }
 
 function newChat(): SavedChat {
@@ -450,10 +447,7 @@ export class AgentView extends ItemView {
 						await this.host.saveSettings();
 						this.applyWindowSize();
 					},
-					getEcosystemActions: () => this.host.getEcosystemActions(),
-					onEcosystemAction: (action) => this.host.runEcosystemAction(action, this.lastPrompt),
-
-			};
+				};
 		new ActionSheetModal(this.app, sheetHost).open();
 	}
 
